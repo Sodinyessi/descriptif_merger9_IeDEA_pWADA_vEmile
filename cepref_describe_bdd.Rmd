@@ -1,0 +1,2223 @@
+---
+title: "\\textbf{CePReF ENFANT DESCRIPTION MERGER 9}"
+author: "\\textbf{Emile Sodinyessi*}$^{1}$, Sophie Desmonde$^{1}$,  Karen Malateste$^{10}$,\ \n Valériane Leroy$^{1}$  \non behalf of the IeDEA West Africa Collaboration\n"
+output:
+  pdf_document:
+    keep_md: true
+    number_sections: true
+  html_document:
+    df_print: paged
+always_allow_html: true
+fontsize: 12pt
+---
+
+\begin{center}
+  \hrulefill
+
+  \vspace{0.4em}
+  \textbf{Characteristics of the updated pediatric}\\[0.5em]
+  \textbf{\LARGE CePReF ENFANT}
+  
+  \vspace{0.2em}
+  \hrulefill
+\end{center}
+	
+\begin{center}
+{\small
+$^1$University of Toulouse, National Institute for Health and Medical Research (INSERM) UMR 1219, Centre d'Epidémiologie et de Recherche en santé des POPulations (CERPOP), Toulouse, France.\\
+
+\vspace{0.5cm}
+
+$^2$Centre de Prise en Charge, de Recherche et de Formation (CEPREF), Abidjan, Côte d'Ivoire.\\
+
+\vspace{0.5cm}
+
+$^{3}$Bordeaux Population Health - Global Health in the Global South, Université de Bordeaux.\\
+
+}
+\end{center}
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = FALSE,        # No code
+  message = FALSE,     # No messages 
+  warning = FALSE,     # No warnings
+  results = 'markup'   # seuls les resultats sont affichés
+)
+```
+
+
+```{r fig.align='center', out.width='100%'}
+knitr::include_graphics("C:/Users/Emile/Desktop/desc_imag_iedea/imag00.png") 
+```
+
+
+```{r}
+# Load the readr package (part of tidyverse)
+library(readr)
+library(dplyr)
+library(lubridate)
+library(stringr)
+library(tidyr)
+
+# Les packages nécessaires 
+library(VIM) # selc_var
+library(ggplot2) #graphiq
+library(tidyverse) #manip
+library(haven)
+library(kableExtra)
+library(corrplot)
+library(ggrepel)
+library(tibble) #manip
+library(caret) #model machine learning
+library(survival) # pour les modèles de survie :: coxph function of model_cox
+library(survey) # Analyse de survie :: longi
+library(srvyr)
+library(marginaleffects)
+library(networkD3) # Pour le diagramme de Sankey
+library(gtsummary) # Descritpion de la population
+library(gt)
+library(questionr) #freq and others
+library(bslib)
+library(shiny) # pour nécessité avec esquisse
+library(esquisse) # Graphics bivary
+#library(nnet) # Pour la régression multinomiale
+library(labelled)
+library(lcmm) #for model class latente
+library(flexmix) 
+library(randomLCA)
+#rm(list = ls())
+library(janitor)
+library(webshot2)
+library(data.table)
+library(tools)
+
+library(future)
+library(furrr)
+#plan(multisession, workers = 4)  # une configuration R pour exécuter des calculs en parallèle sur 4 cœurs de l'ordinateur. Pour des calculs lourd.
+```
+
+```{r}
+set.seed(1234567)  # Jeu de données aléatoires pour la répétabilité des résultats
+```
+
+
+```{r message=FALSE, warning=FALSE, include=FALSE}
+#Import data
+chemin_apin <- "C:/Users/Emile/Desktop/IeDEA/MERGER 9/IeDEA M9 09oct25"
+fichiers_apin <- list.files(path = chemin_apin, pattern = "\\.sas7bdat$", full.names = TRUE)
+wa_apin_tbl <- lapply(fichiers_apin, read_sas)
+names(wa_apin_tbl) <- file_path_sans_ext(basename(fichiers_apin))
+
+#After having completed by hand in excel the coding of each art_id re-import the file and merge
+artx_bis <- read.csv2("C:/Users/Emile/Desktop/IeDEA/projet réponse virologique/TRV pwada vEmile Sept25/File TRV pwada vEmile Sept25/bdd TRV pwada/art_ids_missing_arvtx.csv")
+
+wa_apin_lower <- lapply(wa_apin_tbl, \(x) rename_with(x, tolower)) #Environnement & rename columns
+names(wa_apin_lower) <- paste0("wa_apin_", names(wa_apin_lower))
+list2env(wa_apin_lower, envir = .GlobalEnv)
+```
+
+
+```{r message=FALSE, warning=FALSE, include=FALSE}
+wa_apin_full_m9_ped_apin <- wa_apin_full_m9_ped_apin %>% arrange(patient, program)
+wa_apin_tblbas <- wa_apin_tblbas %>% arrange(patient, program)
+wa_apin_tblltfu <- wa_apin_tblltfu %>% arrange(patient, program)
+
+wa_apin_tblbas$censure24 <- wa_apin_full_m9_ped_apin$censure24
+wa_apin_tblltfu$censure24 <- wa_apin_full_m9_ped_apin$censure24
+
+wa_apin_full_m9_ped_apin <- wa_apin_full_m9_ped_apin %>%
+  mutate(
+    lastcontact_d = format(as.Date(lastcontact_d, origin = "1960-01-01"), "%Y-%m-%d"))
+
+#wa_apin_full_m9_ped_apin <- subset(wa_apin_full_m9_ped_apin, censure24 == 0) #select patient censure24 == 0, soit 677 patients censurés
+#wa_apin_tblbas <- subset(wa_apin_tblbas, censure24 == 0) 
+#wa_apin_tblltfu <- subset(wa_apin_tblltfu, censure24 == 0) 
+```
+
+```{r}
+# liste des tables à filtrer
+tbl_names <- c("wa_apin_full_m9_ped_apin", "wa_apin_tblart",  "wa_apin_tblart_atc", "wa_apin_tblart_v2", "wa_apin_tblbas", "wa_apin_tblcenter",
+               "wa_apin_tbldis", "wa_apin_tbllab", "wa_apin_tbllab_bp", "wa_apin_tbllab_cd4", "wa_apin_tbllab_rna", "wa_apin_tbllab_viro",
+               "wa_apin_tblltfu", "wa_apin_tblmed", "wa_apin_tblvis")
+
+# filtrage en place
+for(nm in tbl_names){
+  df_f <- get(nm, envir = .GlobalEnv)
+  df_f <- dplyr::filter(df_f, program %in% c("CEPREF"))#, "CHUC", "CHUY", "CIRBA", "CNHU", "GABRIEL", "KBTH", "NIMR", "TOKOIN", "YALGADO" ))   # filtre CHUC
+  assign(nm, df_f, envir = .GlobalEnv)          # réécrit la table existante
+}
+```
+
+
+```{r fig.align='center', out.width='75%'}
+knitr::include_graphics("C:/Users/Emile/Desktop/desc_imag_iedea/Image01.png")
+#\begin{center}\textbf{15 Pediatric cohorts in 7 countries for the 4th round}\end{center}
+```
+\vspace{2cm}
+\tableofcontents
+\newpage
+\section{Introduction}
+
+The [**International epidemiology Databases to Evaluate AIDS (IeDEA)**](https://www.iedea.org/home/who-we-are/) consortium collects and harmonizes observational data from over **2.2 million people** living with and at risk for HIV across **44 countries**. Structured into seven regional collaborations, IeDEA supports both regional and global research by pooling multidisciplinary expertise to address high-priority questions on HIV treatment outcomes, co-infections, cancers, and non-communicable diseases. The consortium brings together investigators, clinicians, data managers, and coordinators from diverse backgrounds, working through thematic groups to conduct collaborative research. Supported by multiple U.S. National Institutes, IeDEA’s mission is to strengthen evidence-based HIV care and policy through global data sharing and methodological innovation.  
+
+Within this global framework, the **IeDEA West Africa collaboration** plays a key role in advancing pediatric HIV research through its \texttt{Pediatric Merger 9 database}, which compiles data from **15 clinical sites** including **10 initial centers** and **5 additional sites from the APIN network in Nigeria**. The regional cohort includes both confirmed HIV-infected and HIV-exposed children, offering a comprehensive view of pediatric HIV care and outcomes. A substantial proportion of participants are classified as \texttt{active files} patients alive, not transferred, and seen within the last 12 months demonstrating the region’s robust follow-up system. The cohort further provides essential indicators such as ART initiation and retention in care, contributing valuable insights into treatment access and clinical outcomes for children and adolescents living with HIV in West Africa.  
+
+
+\subsection{Main Tables available}
+\begin{table}[htbp]
+\centering
+\renewcommand{\arraystretch}{1.5} % espace entre les lignes
+\LARGE  
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{clc}
+\toprule
+\textbf{n°} & \textbf{name of the table} & \textbf{description} \\
+\midrule
+1 & tblBAS    & Baseline and sociodemographics characteristics (sex at birth, birth date, date of ART initiation, HIV-disclosure date specific to pediatric \dots) \\
+\hline
+2 & tblART    & Antiretroviral treatments \\
+\hline
+3 & tblLAB    & Laboratory data (glycemia, creatinine, ASAT, ALAT \dots) \\
+\hline
+4 & tblLAB\_BP  & Blood pressure \\
+\hline
+5 & tblLAB\_CD4 & CD4 count and CD4 percent measurements \\
+\hline
+6 & tblLAB\_RNA & HIV Viral load measurements \\
+\hline
+7 & tblLAB\_VIRO & Virological and serology data (HIV, Hepatitis serologies \dots) \\
+\hline
+8 & tblLTFU   & Death, loss to follow-up, transfer out, date of last known to be alive \\
+\hline
+9 & tblMED    & Cotrimoxazole treatment \\
+\hline
+10& tblVIS    & Follow Up visits (weight, clinical stage, pregnancy status, evolutive tuberculosis) \\ 
+\hline
+11& tblDIS    & Diseases (CDC-C \& WHO stage diseases)\\ 
+\bottomrule
+\end{tabular}
+}
+\end{table}
+
+
+
+\subsection{Inclusion criteria}
+\begin{itemize}
+  \item All children aged $<$ 19 years at the first contact with HIV care and :
+  \begin{itemize}
+    \item Children born to mothers living with HIV, until their definite infant HIV diagnosis,\\
+    or censored at age 19 months, whichever came first.
+    \item After HIV diagnosis, any child with a confirmed HIV-1 infection:
+    \begin{itemize}
+      \item one positive PCR regardless of age
+      \item or one positive serology if age $> 18$ months
+      \item treated or not with an antiretroviral multitherapy ($\geq 3$ drugs) and whatever the time of ART initiation.
+    \end{itemize}
+  \end{itemize}
+\end{itemize}
+
+\newpage
+\begin{landscape}
+\subsection{Distribution of patients by status and program}
+\subsubsection{Distribution of patients by status for overall program}
+This table presents the number of patients by infection status and enrollment program. Infected includes both patients on antiretroviral therapy (ART Treated) and those with unknown ART initiation, while HIV-Exposed refers to children not infected with HIV. The table highlights differences in patient numbers across programs, providing insights into program coverage and patient classification based on HIV infection or exposure.
+```{r}
+#\subsubsection{Profile program : ABEOKUTA - AKURE - CEPREF - CHUC - CHUY}
+#table(wa_apin_full_m9_ped_apin$groupe1)
+
+base0 <- wa_apin_full_m9_ped_apin %>%
+  mutate(
+    patient_status = case_when(
+      groupe1 %in% c(1,2) ~ "Infected",
+      groupe1 == 3 ~ "HIV-Exposed")
+  )
+
+base0$patient_status <- factor(base0$patient_status, levels = c("Infected", "HIV-Exposed"))
+```
+
+
+```{r baseline-characteristics00, eval=FALSE, message=FALSE, warning=FALSE, include=FALSE, results='asis'}
+tab01 <- base0 %>%
+  filter(program %in% c("ABEOKUTA",    "AKURE",   "CEPREF",     "CHUC",     "CHUY")) %>%#,    "CIRBA",     "CNHU",  "GABRIEL")) %>%
+  ungroup() %>%
+  tbl_summary(by = "program", include = c("patient_status")) %>%
+  #add_overall(last = TRUE)|> 
+  bold_labels() |> 
+  modify_spanning_header(
+    #update = all_stat_cols() ~ "**Profile : ABEOKUTA - AKURE - CEPREF - CHUC - CHUY**"
+  )
+
+
+
+#cat("This table presents the number of patients by infection status and enrollment program. Infected includes both patients on antiretroviral therapy (ART Treated) and those with unknown ART initiation, while HIV-Exposed refers to children not infected with HIV. The table highlights differences in patient numbers across programs, providing insights into program coverage and patient classification based on HIV infection or exposure.\n")
+
+
+tab01_kable <- tab01 %>%
+  as_kable(format = "latex", booktabs = TRUE, linesep = "\\addlinespace") %>%
+  kable_styling(
+    latex_options = c("hold_position", "striped", "repeat_header"),
+    font_size = 7
+  )
+
+tab01_kable
+#cat("\\begin{center}\\textbf{Site Profile : Number of patients by group and by program}\\end{center}\n\n")
+```
+
+
+
+```{r baseline-characteristics00K1, eval=FALSE, message=FALSE, warning=FALSE, include=FALSE, results='asis'}
+#\subsubsection{Profile program : CIRBA - CNHU - GABRIEL - JOS - KBTH}
+
+tab02 <- base0 %>%
+  filter(program %in% c("CIRBA",     "CNHU",  "GABRIEL", "JOS",     "KBTH")) %>% #,     "NIMR",   "TOKOIN",      "UCH",  "YALGADO")) %>%
+  ungroup() %>%
+  tbl_summary(by = "program", include = c("patient_status")) %>%
+  #add_overall(last = TRUE)|> 
+  bold_labels() |> 
+  modify_spanning_header(
+    #update = all_stat_cols() ~ "**Profile : JOS - KBTH - MAKURDI - NIMR - TOKOIN - UCH - YALGADO**"
+  )
+
+
+tab02_kable <- tab02 %>%
+  as_kable(format = "latex", booktabs = TRUE, linesep = "\\addlinespace") %>%
+  kable_styling(
+    latex_options = c("hold_position", "striped", "repeat_header"),
+    font_size = 7.2
+  )
+
+tab02_kable
+```
+
+
+```{r baseline-characteristics00K2, eval=FALSE, message=FALSE, warning=FALSE, include=FALSE, results='asis'}
+#\subsubsection{Profile program : MAKURDI - NIMR - TOKOIN - UCH - YALGADO}
+
+tab002 <- base0 %>%
+  filter(program %in% c("MAKURDI",  "NIMR",   "TOKOIN",      "UCH",  "YALGADO")) %>%
+  ungroup() %>%
+  tbl_summary(by = "program", include = c("patient_status")) %>%
+  #add_overall(last = TRUE)|> 
+  bold_labels() |> 
+  modify_spanning_header(
+    #update = all_stat_cols() ~ "**Profile : MAKURDI - NIMR - TOKOIN - UCH - YALGADO**"
+  )
+
+
+tab002_kable <- tab002 %>%
+  as_kable(format = "latex", booktabs = TRUE, linesep = "\\addlinespace") %>%
+  kable_styling(
+    latex_options = c("hold_position", "striped", "repeat_header"),
+    font_size = 6.3
+  )
+
+tab002_kable
+```
+
+```{r baseline-characteristics00K0, echo=FALSE, message=FALSE, warning=FALSE, results='asis'}
+tab03 <- base0 %>%
+  mutate(overall = "OVERALL") %>%
+  #filter(program %in% c("JOS",     "KBTH",  "MAKURDI",     "NIMR",   "TOKOIN",      "UCH",  "YALGADO")) %>%
+  ungroup() %>%
+  tbl_summary(by = "overall", include = c("patient_status")) %>%
+  #add_overall(last = TRUE)|> 
+  bold_labels() |> 
+  modify_spanning_header(
+    update = all_stat_cols() ~ "**Site Profile - CePReF**"
+  )
+
+
+tab03_kable <- tab03 %>%
+  as_kable(format = "latex", booktabs = TRUE, linesep = "\\addlinespace") %>%
+  kable_styling(
+    latex_options = c("hold_position", "striped", "repeat_header"),
+    font_size = 16
+  )
+
+tab03_kable
+```
+
+\subsubsection{Distrinution graphic}
+```{r}
+#graphic numbers of patients by program
+base1 <- wa_apin_full_m9_ped_apin
+wa_apin_plot_0 <- base1 %>%
+  mutate(
+    groupe1_label = case_when(
+      groupe1 == 1 ~ "ART Treated",
+      groupe1 == 2 ~ "Unknown ART Initiation",
+      groupe1 == 3 ~ "HIV Exposed"
+    ),
+    groupe1_label = factor(
+      groupe1_label,
+      levels = c("ART Treated", "Unknown ART Initiation", "HIV Exposed")
+    )
+  ) %>%
+  count(program, groupe1_label, name = "n") %>%
+  complete(program, groupe1_label, fill = list(n = 0)) %>%
+  ggplot(aes(x = program, y = n, fill = groupe1_label)) +
+  geom_col(position = position_dodge(width = 0.9)) +
+  geom_text(
+    aes(label = n, group = groupe1_label),
+    position = position_dodge(width = 0.9),
+    vjust = -0.3,
+    hjust = 0.5,
+    size = 5,
+    fontface = "bold"
+  ) +
+  labs(
+    x = "program",
+    y = "count",
+    fill = ""
+  ) +
+  scale_fill_manual(values = c("#2171B5", "#6BAED6", "#CB181D")) +
+  scale_x_discrete(expand = expansion(mult = c(0.08, 0.08))) +
+  theme_classic() +
+  theme(
+    axis.text.x = element_text(angle = 0, hjust = 0.5),
+    plot.title = element_text(size = 12),
+    plot.background = element_rect(fill = "white", color = NA),
+    panel.background = element_rect(fill = "white", color = NA),
+    legend.position = "bottom",
+    legend.direction = "horizontal"
+  )
+
+# + coord_flip()
+
+ggsave("wa_apin_plot_0.png", plot = wa_apin_plot_0, width = 12, height = 6)
+```
+
+```{r, results='asis', echo=FALSE, out.width="100%"}
+#cat("The graph shows the distribution of patients by program and infection status. Several sites  including GABRIEL, MAKURDI, CHUY, JOS, AKURE, and CHUC — are composed exclusively of Infected patients. In contrast, programs such as NIMR, CEPREF, CNHU, KBTH, TOKOIN, and YALGADO have a substantial proportion of HIV-Exposed patients, with NIMR and CNHU showing particularly high numbers in this group. These differences reflect the heterogeneous composition of patient populations across programs. \n")
+knitr::include_graphics("wa_apin_plot_0.png")
+#cat("\\begin{center}\\textbf{Site Profile :  Number of patients by group and by program}\\end{center}\n\n")
+
+```
+\end{landscape}
+
+
+```{r}
+tab1 <- base0 %>%
+  filter(file_active ==1) %>%
+  mutate(all_active_file = "file_active") %>%
+  ungroup() %>%
+  tbl_summary(by = "all_active_file", include = c("patient_status")) %>%
+  #add_overall(last = TRUE)|> 
+  bold_labels() |> 
+  modify_spanning_header(
+    #update = all_stat_cols() ~ "**Profile : Active File**"
+  )
+
+tab2 <- base0 %>%
+  filter(file_active ==1) %>%
+  mutate(all_active_file = "file_active") %>%
+  ungroup() %>%
+  tbl_summary(by = "all_active_file", include = c("program")) %>%
+   bold_labels() |> 
+  modify_spanning_header(
+    #update = all_stat_cols() ~ "**Profile : Active File**"
+  )
+```
+
+
+\section{Patient Flow Chart}
+
+\subsection{Site Profile (1)}
+
+This patient flow chart shows the distribution of participants by category: Infected (ART initiation (1) and  unknown ART initiation(2)) and HIV-exposed children (3). It displays the number of active patients in each group along with their corresponding percentages.
+\vspace{1cm}
+
+     -------------------------------------------------------------------------------
+                Collaboration IeDEA West Africa Pediatric Merger 9
+                                  
+                                 CePReF ENFANT 
+
+                                 N ==   3,352
+     -------------------------------------------------------------------------------
+                      Active file* == AF : 418 (-.--%)
+                                                                         
+           groupe1&2                                            groupe3
+     -----------------------------               -----------------------------------             
+           Infected                                      HIV-exposed children
+        
+         N == -,---                                          N == -,---
+     -----------------------------               -----------------------------------               
+       AF : 355 (--%)                            Born to mothers infected with HIV 
+                                              and waiting for definite HIV diagnosis
+                                                           AF : --- (-.-%)
+
+            groupe1                         groupe2                             
+     ------------------------       -----------------------
+       ART initiation               Unknown ART initiation  
+          
+         N == -,--                    N == -,--
+     ------------------------       -----------------------
+    Initiation of antiretroviral           AF : -- (-.-%) *** 
+     (therapy  >= 3 drugs)
+       AF :   -,--- (--%) 
+    *Patients alive, not transfered out and seen at least once in the last 
+            12 months prior to the cohort closure date [n, (%)]
+
+
+
+\newpage
+\begin{landscape}
+\subsection{Site Profile (2)}
+```{r}
+#This table summarizes the distribution of patients across different program groups within the cohort. Among the 30,913 individuals included, 897 were ART-treated, 2,929 had an unknown ART initiation status, and 14,145 were HIV-exposed but not yet on ART. At the time of database closure, 5,040 patients (16\% overall) were still active in care. The proportion of active patients was highest among ART-treated individuals (32\%), compared with 2.6\% among those with unknown ART initiation status and 3.5\% among HIV-exposed individuals.
+
+```
+
+```{r baseline-characteristics001, results='asis', echo=FALSE, message=FALSE, warning=FALSE}
+#cat("\\begin{center}\\textbf{Site Profile - file_active by group}\\end{center}\n\n")
+
+
+tab1_kable1 <- tab1 %>%
+  as_kable(format = "latex", booktabs = TRUE, linesep = "\\addlinespace") %>%
+  kable_styling(
+    latex_options = c("hold_position", "striped", "repeat_header"),
+    font_size = 16
+  )
+tab1_kable1
+
+#cat("\\begin{center}\\textbf{Site Profile - file_active by program}\\end{center}\n\n")
+```
+
+```{r}
+#This table presents the distribution of active patients by program within the cohort. Overall, the proportion of patients remaining in active follow-up at the time of database closure varied substantially across sites. Programs such as ABEOKUTA (57\%) and AKURE (51\%) reported the highest proportions of active patients, followed by JOS (35\%), MAKURDI (36\%), CIRBA (25\%), CHUC (24\%), GABRIEL (24\%), and TOKOIN (23\%). In contrast, lower proportions were observed in programs such as NIMR (4.2\%), CNHU (7.2\%), and CEPREF (12\%). These variations may reflect differences in program size, patient retention strategies, and timing of program initiation and data closure across sites.
+```
+
+
+```{r baseline-characteristics001K0, eval=FALSE, message=FALSE, warning=FALSE, include=FALSE, results='asis'}
+tab2_kable1 <- tab2 %>%
+  as_kable(format = "latex", booktabs = TRUE, linesep = "\\addlinespace") %>%
+  kable_styling(
+    latex_options = c("hold_position", "striped", "repeat_header"),
+    font_size = 12
+  )
+tab2_kable1
+```
+\end{landscape}
+
+```{r}
+##BASELINE CHARACTERISTICS
+wa_apin_inf <- wa_apin_full_m9_ped_apin %>% filter(groupe1 %in% c(1,2)) #
+```
+
+
+```{r}
+#wa_apin_inf$enrol_y <- as.numeric(as.character(wa_apin_inf$enrol_y))  # si possible
+tab_graph1 <- wa_apin_inf 
+wa_apin_plo1 <- ggplot(tab_graph1 %>% filter(enrol_y > 2005 & enrol_y < 2024),
+                       aes(x = enrol_y, y = ..count.., color = factor(groupe1), group = groupe1)) +
+  geom_line(stat = "count", size = 1.2) +
+  geom_point(stat = "count", size = 2) +
+  scale_color_manual(
+    values = c("1" = "blue", "2" = "red"),
+    labels = c("ART Initiation", "Unknown ART Initiation")
+  ) +
+  scale_x_continuous(breaks = seq(2003, max(tab_graph1$enrol_y, na.rm = TRUE), 1)) +
+  labs(
+    x = "year of Enrolment",
+    y = "number of Enrolment",
+    color = ""
+  ) +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle = 0, hjust = 0.5),
+    plot.title = element_text(size = 12),
+    plot.background = element_rect(fill = "white", color = NA),
+    panel.background = element_rect(fill = "white", color = NA),
+    legend.position = "bottom",        # légende en bas
+    legend.direction = "horizontal"    # orientation horizontale
+  )
+
+ggsave("wa_apin_plo1.png", plot = wa_apin_plo1, width = 12, height = 6)
+```
+
+\newpage
+\begin{landscape}
+
+\section{Enrollment Trends by Participating Cohort : 2006 - 2023}
+\subsection{Frequency of children enrolled in ART Initiation and Unknown ART Initiation}
+```{r, results='asis', echo=FALSE, out.width="100%"}
+
+cat("{This graph illustrates the annual evolution of patients enrolled in the West Africa cohort between 2006 and 2024, distinguishing those with documented antiretroviral treatment initiation (ART Initiation) from those with unknown initiation status (Unknown ART Initiation). The curves highlight temporal trends and differences in patient volumes between the two groups, shedding light on recruitment dynamics and the quality of information collected on treatment initiation over time.}\n")
+knitr::include_graphics("wa_apin_plo1.png")
+#cat("\\begin{center}\\textbf{Frequency of children enrolled in ART Initiation and Unknown ART Initiation since 2006}\\end{center}\n\n")
+
+```
+\end{landscape}
+
+
+```{r}
+wa_apin_full_m9_ped_apin <- wa_apin_full_m9_ped_apin %>%
+  mutate(
+    groupe1 = case_when(
+      groupe1 == "ART Treated" ~ 1,
+      groupe1 == "Unknown ART Initiation" ~ 2,
+      groupe1 == "HIV-Exposed" ~ 3,
+      TRUE ~ as.numeric(groupe1)  # ou NA si les autres sont non convertibles
+    )
+  )
+```
+
+
+
+\newpage
+\begin{landscape}
+\section{Database closure dates CePReF program}
+```{r}
+#The table presents the database closing dates for each program (site) included in the cohort, along with the corresponding center name, country, and city. By ordering the sites from the earliest to the most recent closure, it provides a clear overview of the temporal dimension of data availability across all participating centers. The earliest database closure occurred at the Centre Hospitalier Universitaire de Tokoin (Togo) on December 12, 2023, while the most recent closure was recorded at multiple APIN program sites in Nigeria (Abeokuta, Akure, Jos, Makurdi, and UCH Ibadan) on April 30, 2025. This temporal distribution is critical for understanding variations in data availability and completeness over time.
+
+#Furthermore, by distinguishing between sites participating in the IeDEA network and those affiliated with the APIN program, the table highlights potential differences in the timing of data collection and database closure between programs. These differences may influence data coverage across calendar periods and should be carefully considered when conducting longitudinal or multi-site analyses. Incorporating this temporal context helps ensure more accurate interpretation of study findings and a better understanding of site-level contributions to the cohort.
+```
+
+```{r}
+date_closed <- wa_apin_tblcenter %>% select(program,name,country,city,open_d,close_d) %>% arrange(close_d)
+#kable(date_closed, caption = "Dates de clôture des centres IeDEA + APIN", booktabs = TRUE, longtable = TRUE)
+#date_closed$close_date  <- date_closed$close_d
+#date_closed$close_d <- NULL
+
+
+table_date <- kable(
+  date_closed,
+  #caption = "Dates de clôture des centres IeDEA + APIN",
+  booktabs = TRUE,
+  longtable = TRUE,
+  align = "c",           # <-- centre le texte dans toutes les colonnes
+  position = "center"    # <-- centre le tableau dans la page
+) %>%
+  kable_styling(
+    latex_options = c("striped", "hold_position", "repeat_header")
+  )
+table_date
+#cat("Le tableau présente les dates de clôture des bases de données pour chaque programme (site) inclus dans la cohorte, en indiquant également le nom du centre, le pays et la ville correspondants. Il permet de visualiser la disponibilité et la finalisation des données par site, ce qui est essentiel pour interpréter correctement les analyses basées sur ces bases. En distinguant les centres du réseau IeDEA et ceux du programme APIN, ce tableau offre une vue claire sur les différences éventuelles de temporalité dans la collecte et la clôture des données.\n")
+```
+\end{landscape}
+
+
+
+```{r}
+wa_apin_inf <- wa_apin_full_m9_ped_apin %>% filter(groupe1 %in% c(1,2)) #
+
+#Rename variable
+tbl_inf_charc <- wa_apin_inf
+tbl_inf_charc <- tbl_inf_charc %>%
+  mutate(hiv_type = ifelse(is.na(hiv_type) | hiv_type %in% c(4, 9, 999), 1, hiv_type),
+         hiv_type = case_when(
+           hiv_type == 1 ~ "HIV - 1",
+           hiv_type == 2 ~ "HIV - 2",
+           hiv_type == 3 ~ "HIV - 1&2"),
+         year_of_inclusion_to_cohort = case_when(
+           !is.na(enrol_y) & enrol_y < 2006 ~ "< 2006",
+           enrol_y >= 2006 & enrol_y <= 2008 ~ "2006 - 2008",
+           enrol_y >= 2009 & enrol_y <= 2013 ~ "2009 - 2013",
+           enrol_y >= 2014 & enrol_y <= 2016 ~ "2014 - 2016",
+           enrol_y >= 2017 & enrol_y <= 2020 ~ "2017 - 2020",
+           enrol_y >= 2021 ~ ">= 2021"),
+         age_last_year_5cl = case_when(
+           !is.na(age_last_year) & age_last_year < 5 ~ "< 5 years",
+           age_last_year >= 5  & age_last_year < 10  ~ "5 – 9 years",
+           age_last_year >= 10 & age_last_year < 16 ~ "10 – 15 years",
+           age_last_year >= 16 & age_last_year < 20 ~ "16 – 19 years",
+           age_last_year >= 20 & age_last_year <= 24 ~ "20 – 24 years"),
+         outcomes = case_when(
+           outcome == 1 ~ "Death",
+           outcome == 2 ~ "Transferred out",
+           outcome == 3 ~ "Loss to follow_up",
+           outcome == 4 ~ "Censorhip at age 24",
+           outcome == 5 ~ "Follow_up"),
+         clinical_stage_at_inclusion_6months = case_when(
+           stage_enrol == 1 ~ "CDC A/B. WHO I/II",
+           stage_enrol == 2 ~ "CDC C. WHO III/IV",
+           stage_enrol == 9 ~ "Not documented"
+    ))
+
+tbl_inf_charc$hiv_type = factor(tbl_inf_charc$hiv_type,
+      levels = c("HIV - 1","HIV - 2", "HIV - 1&2"))
+
+tbl_inf_charc$outcomes = factor(tbl_inf_charc$outcomes,
+      levels = c("Death","Transferred out", "Loss to follow_up", "Follow_up", "Censorhip at age 24"))
+
+tbl_inf_charc$age_last_year_5cl = factor(tbl_inf_charc$age_last_year_5cl,
+      levels = c("< 5 years", "5 – 9 years", "10 – 15 years", "16 – 19 years", "20 – 24 years"))
+
+tbl_inf_charc$year_of_inclusion_to_cohort <- factor(tbl_inf_charc$year_of_inclusion_to_cohort, 
+                                                    levels = c("< 2006", "2006 - 2008", "2009 - 2013", "2014 - 2016", "2017 - 2020", ">= 2021"))
+
+
+tbl_inf_charc <- tbl_inf_charc %>% rename(sex_at_birth = sex,
+                                          age_med_at_enroL_yrs = age_enrol_year,
+                                          med_follow_up_since_enroL_yrs = del_enrol_end_y,
+                                          age_at_last_follow_up_yr = age_last_year,
+                                          class_age_at_last_contact = age_last_year_5cl)
+tbl_inf_charc <- tbl_inf_charc %>%
+  mutate(sex_at_birth = if_else(sex_at_birth == 1, "Male", "FeMale"))
+
+tbl_inf_charc <- tbl_inf_charc %>% 
+  mutate(OVERALL = "OVERALL")
+```
+
+
+\begin{landscape}
+```{r baseline-characteristics002, eval=FALSE, message=FALSE, warning=FALSE, include=FALSE, results='asis'}
+library(gtsummary)
+library(kableExtra)
+library(dplyr)
+
+
+tbl_char1 <- tbl_inf_charc %>%
+  filter(program %in% c("CEPREF",  "CHUC",    "CHUY",   "CIRBA",    "CNHU")) %>%
+  ungroup() %>%
+  tbl_summary(
+    by = "program", 
+    include = c("sex_at_birth", "hiv_type", age_med_at_enroL_yrs, "year_of_inclusion_to_cohort", 
+                med_follow_up_since_enroL_yrs, age_at_last_follow_up_yr, "class_age_at_last_contact")) %>%
+  bold_labels() %>%
+  modify_spanning_header(
+    all_stat_cols() ~ "**Infected**"
+  )
+
+
+
+
+
+
+tbl_char1_kable <- tbl_char1 %>%
+  as_kable(format = "latex", booktabs = TRUE, linesep = "\\addlinespace") %>%
+  kable_styling(
+    latex_options = c("hold_position", "striped", "repeat_header"),
+    font_size = 8
+  )
+
+tbl_char1_kable
+
+```
+\end{landscape}
+
+\begin{landscape}
+```{r baseline-characteristics003, eval=FALSE, message=FALSE, warning=FALSE, include=FALSE, results='asis'}
+library(gtsummary)
+library(kableExtra)
+library(dplyr)
+
+
+tbl_char2 <- tbl_inf_charc %>%
+  filter(program %in% c("GABRIEL", "KBTH",  "NIMR", "TOKOIN","YALGADO")) %>%
+  ungroup() %>%
+  tbl_summary(
+    by = "program", 
+    include = c("sex_at_birth", "hiv_type", age_med_at_enroL_yrs, "year_of_inclusion_to_cohort", 
+                med_follow_up_since_enroL_yrs, age_at_last_follow_up_yr, "class_age_at_last_contact")) %>%
+  bold_labels() %>%
+  modify_spanning_header(
+    all_stat_cols() ~ "**Infected**"
+  )
+
+
+
+
+
+
+tbl_char2_kable <- tbl_char2 %>%
+  as_kable(format = "latex", booktabs = TRUE, linesep = "\\addlinespace") %>%
+  kable_styling(
+    latex_options = c("hold_position", "striped", "repeat_header"),
+    font_size = 6
+  )
+
+tbl_char2_kable
+
+```
+\end{landscape}
+
+\begin{landscape}
+```{r baseline-characteristics004, eval=FALSE, message=FALSE, warning=FALSE, include=FALSE, results='asis'}
+library(gtsummary)
+library(kableExtra)
+library(dplyr)
+
+
+tbl_char3 <- tbl_inf_charc %>%
+  filter(program %in% c("ABEOKUTA", "AKURE",  "JOS", "MAKURDI","UCH")) %>%
+  ungroup() %>%
+  tbl_summary(
+    by = "program", 
+    include = c("sex_at_birth", "hiv_type", age_med_at_enroL_yrs, "year_of_inclusion_to_cohort", 
+                med_follow_up_since_enroL_yrs, age_at_last_follow_up_yr, "class_age_at_last_contact")) %>%
+  bold_labels() %>%
+  modify_spanning_header(
+    all_stat_cols() ~ "**Infected**"
+  )
+
+
+
+
+
+
+tbl_char3_kable <- tbl_char3 %>%
+  as_kable(format = "latex", booktabs = TRUE, linesep = "\\addlinespace") %>%
+  kable_styling(
+    latex_options = c("hold_position", "striped", "repeat_header"),
+    font_size = 6
+  )
+
+tbl_char3_kable
+
+```
+\end{landscape}
+
+```{r eval=FALSE, include=FALSE}
+tbl_inf_charc <- tbl_inf_charc %>% filter(program=="AKURE") %>%
+  mutate(
+    enrol_d = as.Date(enrol_d),
+    f_art_d = as.Date(f_art_d),
+    # Rapid ART initiation: <= 7 days between enrollment and ART start
+    rapid_ART = if_else(!is.na(f_art_d) & !is.na(enrol_d) & (f_art_d - enrol_d <= 7), 1, 0),
+    # Patients enrolled from 2016 onwards
+    enrolled_2016_onwards = if_else(!is.na(enrol_d) & year(enrol_d) >= 2016, 1, 0)
+  )
+```
+
+
+\newpage
+\section{Infected : N = 1,318}
+\subsection{Socio-demographics characteristics}
+\subsubsection{Baseline characteristics - overalL}
+```{r baseline-characteristics006, results='asis', echo=FALSE, message=FALSE, warning=FALSE}
+# Supposons que tes variables catégorielles et continues soient définies ainsi 
+cat_vars <- c("sex_at_birth", "hiv_type", "class_age_at_last_contact", "clinical_stage_at_inclusion_6months", "year_of_inclusion_to_cohort")
+cont_vars <- c("age_med_at_enroL_yrs", "med_follow_up_since_enroL_yrs", "age_at_last_follow_up_yr")
+
+tbl_char4 <- tbl_inf_charc %>%
+  #filter(program %in% c("CEPREF", "CHUC", "CHUY", "CIRBA", "CNHU")) %>%
+  select(OVERALL, all_of(cat_vars), all_of(cont_vars)) %>%
+  tbl_summary(
+    by = OVERALL,
+    type = list(all_of(cont_vars) ~ "continuous", all_of(cat_vars) ~ "categorical"),
+    statistic = list(
+      all_of(cont_vars) ~ "{median} [{p25}; {p75}]",
+      all_of(cat_vars) ~ "{n} ({p}%)"
+    ),
+    digits = list(
+      all_of(cont_vars) ~ c(1,1),  # 2 chiffres pour médiane et 1 pour quartiles
+      all_of(cat_vars) ~ c(0,1)    # 0 décimale pour n, 1 décimale pour % 
+    ),
+    missing = "ifany",
+    label = list(
+      sex_at_birth ~ "Sex",
+      hiv_type ~ "HIV type",
+      age_med_at_enroL_yrs ~ "Age (years) at enrollment",
+      year_of_inclusion_to_cohort ~ "Year of inclusion to cohort",
+      med_follow_up_since_enroL_yrs ~ "Median follow-up since enrollment (years)",
+      age_at_last_follow_up_yr ~ "Age (years) at last follow-up",
+      class_age_at_last_contact ~ "Age category at last contact",
+      clinical_stage_at_inclusion_6months ~ "WHO clinical stage at enrolment (+/-6 months)"
+    )
+  ) %>%
+  bold_labels() %>%
+  modify_spanning_header(
+    #all_stat_cols() ~ "**Infected**"
+  )
+
+
+tbl_char4_kable <- tbl_char4 %>%
+  as_kable(format = "latex", booktabs = TRUE, linesep = "\\addlinespace") %>%
+  kable_styling(
+    latex_options = c("hold_position", "striped", "repeat_header"),
+    font_size = 10
+  )
+
+tbl_char4_kable
+```
+
+
+
+\newpage
+\subsubsection{Baseline characteristics - Active File}
+```{r baseline-characteristics0067, results='asis', echo=FALSE, message=FALSE, warning=FALSE}
+#ACTIVE FILE
+
+tbl_char5 <- tbl_inf_charc %>%
+  filter(file_active ==1) %>%
+  mutate(all_active_file = "file_active") %>%
+  select(all_active_file, all_of(cat_vars), all_of(cont_vars)) %>%
+  tbl_summary(
+    by = all_active_file,
+    type = list(all_of(cont_vars) ~ "continuous", all_of(cat_vars) ~ "categorical"),
+    statistic = list(
+      all_of(cont_vars) ~ "{median} [{p25}; {p75}]",
+      all_of(cat_vars) ~ "{n} ({p}%)"
+    ),
+    digits = list(
+      all_of(cont_vars) ~ c(1,1),  # 2 chiffres pour médiane et 1 pour quartiles
+      all_of(cat_vars) ~ c(0,1)    # 0 décimale pour n, 1 décimale pour % 
+    ),
+    missing = "ifany",
+    label = list(
+      sex_at_birth ~ "Sex",
+      hiv_type ~ "HIV type",
+      age_med_at_enroL_yrs ~ "Age (years) at enrollment",
+      year_of_inclusion_to_cohort ~ "Year of inclusion to cohort",
+      med_follow_up_since_enroL_yrs ~ "Median follow-up since enrollment (years)",
+      age_at_last_follow_up_yr ~ "Age (years) at last follow-up",
+      class_age_at_last_contact ~ "Age category at last contact",
+      clinical_stage_at_inclusion_6months ~ "WHO clinical stage at enrolment (+/-6 months)"
+    )
+  ) %>%
+  bold_labels() %>%
+  modify_spanning_header(
+    #all_stat_cols() ~ "**Infected**"
+  )
+
+
+tbl_char5_kable <- tbl_char5 %>%
+  as_kable(format = "latex", booktabs = TRUE, linesep = "\\addlinespace") %>%
+  kable_styling(
+    latex_options = c("hold_position", "striped", "repeat_header"),
+    font_size = 10
+  )
+
+tbl_char5_kable
+```
+
+\newpage
+\subsection{Outcomes}
+```{r baseline-characteristics007, results='asis', echo=FALSE, message=FALSE, warning=FALSE}
+library(gtsummary)
+library(kableExtra)
+library(dplyr)
+
+
+tbl_char6 <- tbl_inf_charc %>%
+  ungroup() %>%
+  tbl_summary(
+    by = "sex_at_birth",
+    include = c("outcomes")) %>%
+  add_overall(last = TRUE)|> 
+  bold_labels() %>%
+  modify_spanning_header(
+    all_stat_cols() ~ "**INFECTED**"
+  )
+
+tbl_char6_kable <- tbl_char6 %>%
+  as_kable(format = "latex", booktabs = TRUE, linesep = "\\addlinespace") %>%
+  kable_styling(
+    latex_options = c("hold_position", "striped", "repeat_header"),
+    font_size = 12
+  )
+
+tbl_char6_kable
+```
+
+A patient was loss to follow-up (LTFU*) if he has not known to have died or to be transferred out and had at least 12 months of additional potential follow-up between his last visit registered in the database and the closing date of the database.
+
+\newpage
+\subsection{Cumulative incidence}
+```{r}
+#temps de suivi depuis l'init ARV
+bdd_cum_inc <- wa_apin_inf %>% filter(!is.na(f_art_d)) %>%
+  mutate(
+    #lastcontact_d = format(as.Date(lastcontact_d, origin = "1960-01-01"), "%Y-%m-%d"), #format = "%Y-%m-%d"
+    time = as.numeric(difftime(lastcontact_d, f_art_d,units = "days")/30.4),
+    time = if_else(time < 0, 0, time)
+  )
+
+wa_apin_surv_full <- bdd_cum_inc %>% #filter(program == "CEPREF") %>%
+  select(program, sex, death_d, death_y, l_alive_d, ltfup, transfer_d, transfer_y, recart_d, f_art_d, recart_y,
+         close_d, enrol_d, patient, lastcontact_d, time, program) 
+
+wa_apin_surv_full$an_init_arv <- year(wa_apin_surv_full$f_art_d)
+wa_apin_surv_full$dcd_p <- wa_apin_surv_full$death_y
+wa_apin_surv_full$pdv_p <- wa_apin_surv_full$ltfup
+
+wa_apin_surv_full <- wa_apin_surv_full %>%
+  mutate(non_suivi = if_else(death_y!=1 & transfer_y!=1 & ltfup!=1, 1, 0),
+         time = if_else(non_suivi ==1, 0, time))
+
+
+wa_apin_survie_stacked  <- wa_apin_surv_full %>% 
+  #filter(!is.na(an_init_arv)) %>%
+  select(an_init_arv, sex, time, dcd_p, pdv_p, non_suivi, transfer_y, program)
+
+wa_apin_survie_stacked <- wa_apin_survie_stacked %>%
+  mutate(
+    event = case_when(
+      non_suivi == 1   ~ 1,
+      pdv_p == 1       ~ 2,
+      dcd_p == 1       ~ 3,
+      transfer_y == 1  ~ 4))
+wa_apin_survie_stacked <- wa_apin_survie_stacked %>%
+  mutate(event = if_else(is.na(event), 1, event))
+
+wa_apin_survie_stacked$event <- as.numeric(wa_apin_survie_stacked$event)
+wa_apin_survie_stacked <- wa_apin_survie_stacked %>%
+  mutate(
+    period_p = case_when(
+      #an_init_arv <2014 ~ 0,
+      an_init_arv %in% c(2014, 2015) ~ 1,
+      an_init_arv %in% c(2016, 2017) ~ 2,
+      an_init_arv %in% c(2018, 2019) ~ 3,
+      an_init_arv %in% c(2020, 2021) ~ 4,
+      #an_init_arv %in% c(2022, 2023) ~ 5,
+      TRUE ~ NA_real_))
+wa_apin_survie_stacked$period_p <- as.numeric(wa_apin_survie_stacked$period_p)
+wa_apin_survie_stacked$dcd_p <- as.numeric(wa_apin_survie_stacked$dcd_p)
+```
+
+```{r}
+library(prodlim)
+library(survival)
+library(dplyr)
+library(ggplot2)
+library(labeling)
+library(tibble)
+library(haven)
+wa_apin_survie_stacked <- wa_apin_survie_stacked %>% filter(an_init_arv > 2013 & an_init_arv < 2022)
+ajfit_all_wa_apin <- prodlim(Hist(time, event) ~ 1, data = wa_apin_survie_stacked )
+
+#survie_wa_apin_p0 <- filter(wa_apin_survie_stacked, period_p==0)
+survie_wa_apin_p1 <- filter(wa_apin_survie_stacked, period_p==1)
+survie_wa_apin_p2 <- filter(wa_apin_survie_stacked, period_p==2)
+survie_wa_apin_p3 <- filter(wa_apin_survie_stacked, period_p==3)
+survie_wa_apin_p4 <- filter(wa_apin_survie_stacked, period_p==4)
+
+#ajfit_wa_apin_p0 <- prodlim(Hist(time, event) ~ 1, data = survie_wa_apin_p0)
+ajfit_wa_apin_p1 <- prodlim(Hist(time, event) ~ 1, data = survie_wa_apin_p1)
+ajfit_wa_apin_p2 <- prodlim(Hist(time, event) ~ 1, data = survie_wa_apin_p2)
+ajfit_wa_apin_p3 <- prodlim(Hist(time, event) ~ 1, data = survie_wa_apin_p3)
+ajfit_wa_apin_p4 <- prodlim(Hist(time, event) ~ 1, data = survie_wa_apin_p4)
+
+## New plot
+```
+
+\subsubsection{Graphic CePReF - Overall : 2014 - 2021}
+```{r}
+plot(ajfit_all_wa_apin,
+     cause="stacked",
+     col = c("black", "darkorange", "red", "blue"),  
+     #col = c("darkblue", "darkred", "darkgreen", "orange"),  # Couleurs personnalisées
+     #col = seq(1,4),
+     xlim=c(0,24),
+     ylim=c(0, 1),  # Ajout de cette ligne pour limiter l'axe y à 50%
+     axis1.at = seq(0, 24, 4),
+     axis2.at = seq(0, 1, 0.1),                      # valeurs internes (0 à 1)
+     axis2.labels = paste0(seq(0, 100, 10), "%"),    # affichage 0%, 10%, ..., 100%
+     xlab="time (months)",
+     ylab="Cumulative incidence",
+     atrisk.at=seq(0,24,4),
+     atrisk.title="",
+     legend = FALSE,        # <-- supprime la légende
+     #plot.main="IeDEA pWADA - Overall : 2004 - 2021",
+     atrisk.cex=1.3)     # Taille des chiffres de la population à risque 
+legend("topleft", 
+       legend = c("No follow-up", "Loss to follow-up", "Death", "Transfer"),
+       col = c("black", "darkorange", "red", "blue"),
+       lty = 1,
+       lwd = 1.5,        # <- épaissit les lignes de la légende
+       #cex = 1.2,      # <- augmente la taille du texte
+       bty = "n",      # pas de cadre
+       inset = c(-0.01, 0)
+)
+```
+
+
+\newpage
+\subsubsection{Graphics CePReF : 2014-2015, 2016-2017, 2018-2019, 2020-2021}
+```{r, echo=FALSE, fig.width=12, fig.height=8, fig.landscape=TRUE}
+# Disposer 4 graphiques en 2x2
+par(mfrow = c(2, 2), mar = c(4,4,3,1))  # marges : bottom, left, top, right
+
+plots_list <- list(
+  list(fit = ajfit_wa_apin_p1, title = "2014 - 2015"),
+  list(fit = ajfit_wa_apin_p2, title = "2016 - 2017"),
+  list(fit = ajfit_wa_apin_p3, title = "2018 - 2019"),
+  list(fit = ajfit_wa_apin_p4, title = "2020 - 2021")
+)
+
+for(p in plots_list){
+  plot(p$fit,
+       cause = "stacked",
+       col = c("black", "darkorange", "red", "blue"),
+       xlim = c(0, 24),
+       ylim = c(0, 1),
+       axis1.at = seq(0, 24, 4),
+       axis2.at = seq(0, 1, 0.1),
+       axis2.labels = paste0(seq(0, 100, 10), "%"),
+       xlab = "time (months)",
+       ylab = "Cumulative incidence",
+       atrisk.at = seq(0, 24, 4),
+       atrisk.title = "",
+       legend = FALSE,
+       plot.main = p$title,
+       atrisk.cex = 1.3)
+  legend("topleft", 
+         legend = c("No follow-up", "Loss to follow-up", "Death", "Transfer"),
+         col = c("black", "darkorange", "red", "blue"),
+         lty = 1,
+         lwd = 2,
+         bty = "n",
+         inset = c(-0.01, 0))
+}
+```
+
+
+
+```{r include=FALSE}
+wa_apin_inf <- wa_apin_inf %>%
+  mutate(f_art_y =year(f_art_d))
+art_init <-  wa_apin_inf %>%
+  filter(groupe1 == 1) %>%
+  mutate(
+    class_year_of_art_initiation = case_when(
+      !is.na(f_art_y) & f_art_y < 2015 ~ "< 2015",
+      !is.na(f_art_y) & f_art_y >= 2015 & f_art_y <= 2016 ~ "2015-2016",
+      !is.na(f_art_y) & f_art_y >= 2017 & f_art_y <= 2018 ~ "2017-2018",
+      !is.na(f_art_y) & f_art_y >= 2019 & f_art_y <= 2020 ~ "2019-2020",
+      !is.na(f_art_y) & f_art_y >= 2021 & f_art_y <= 2022 ~ "2021-2022",
+      !is.na(f_art_y) & f_art_y >= 2023 ~ ">=2023",
+      is.na(f_art_y) ~ "Missing"
+    ))
+
+art_init$class_year_of_art_initiation <- factor(
+    art_init$class_year_of_art_initiation,
+    levels = c("< 2015", "2015-2016", "2017-2018", "2019-2020", "2021-2022", ">=2023", "Missing"))
+
+art_init$follow_Up_duration_since_art_initiation <- art_init$del_enrol_end_y
+
+art_init <- art_init %>%
+  mutate(class_age_follow_Up_duration_since_art_initiation = case_when(
+    !is.na(age_art_year) & age_art_year < 1  ~ "< 1 year",
+    age_art_year >= 1 & age_art_year < 2 ~ "[1-2[ years",
+    age_art_year >= 2 & age_art_year < 3 ~ "[2-3[ years",
+    age_art_year >= 3 & age_art_year < 4 ~ "[3-4[ years",
+    age_art_year >= 4 & age_art_year < 5 ~ "[4-5[ years",
+    age_art_year >= 5 ~ ">= 5 years"
+  )) %>%
+  mutate(class_age_follow_Up_duration_since_art_initiation = factor(
+    class_age_follow_Up_duration_since_art_initiation,
+    levels = c("< 1 year", "[1-2[ years", "[2-3[ years", "[3-4[ years", "[4-5[ years", ">= 5 years"),
+    ordered = TRUE
+  ))
+
+art_init$haart_regimen <- as.factor(art_init$haart_regimen)
+art_init <-  art_init %>% rename(Type_of_first_art_regimen   = haart_regimen,
+                              age_at_art_initiation_year    = age_art_year,
+                              sex_at_birth = sex)
+
+art_init <- art_init %>%
+  mutate(sex_at_birth = if_else(sex_at_birth == 1, "Male", "FeMale"))
+```
+
+\newpage
+\begin{landscape}
+\newpage
+\section{ART INITIATION : N = 897}
+\subsection{Baseline characteristics of children with ART Initiation}
+```{r baseline-characteristics_art_init, results='asis', echo=FALSE, message=FALSE, warning=FALSE}
+tbl_char10 <- art_init %>%
+  ungroup() %>%
+  tbl_summary(
+    include = c(
+      "sex_at_birth",
+      age_at_art_initiation_year,
+      "class_year_of_art_initiation",
+      "Type_of_first_art_regimen",
+      follow_Up_duration_since_art_initiation,
+      "class_age_follow_Up_duration_since_art_initiation"
+    ),
+    type = list(
+      all_categorical() ~ "categorical",
+      all_continuous() ~ "continuous"
+    ),
+    statistic = list(
+      all_categorical() ~ "{n} ({p}%)",
+      all_continuous() ~ "{median} [{p25}; {p75}]"
+    ),
+    digits = list(
+      all_categorical() ~ c(0, 1),     # 0 décimale pour n, 1 décimale pour %
+      all_continuous() ~ c(2, 1)       # 2 décimales pour médiane, 1 pour quartiles (modifiable)
+    ),
+    missing = "no",
+    label = list(
+      sex_at_birth ~ "Sex",
+      age_at_art_initiation_year ~ "Age at ART initiation (years)",
+      class_year_of_art_initiation ~ "Year of ART initiation (class)",
+      Type_of_first_art_regimen ~ "Type of first ART regimen",
+      follow_Up_duration_since_art_initiation ~ "Follow-up duration since ART initiation (years)",
+      class_age_follow_Up_duration_since_art_initiation ~ "Follow-up duration class since ART initiation"
+    )
+  ) %>%
+  bold_labels() %>%
+  modify_spanning_header(
+    all_stat_cols() ~ "**ART INITIATION**"
+  )
+
+
+tbl_char10_kable <- tbl_char10 %>%
+  as_kable(format = "latex", booktabs = TRUE, linesep = "\\addlinespace") %>%
+  kable_styling(
+    latex_options = c("hold_position", "striped", "repeat_header"),
+    font_size = 6
+  )
+
+tbl_char10_kable
+```
+\end{landscape}
+
+
+
+
+```{r include=FALSE}
+##\section{CD4 cell count measures}
+bdd_cd4_mesar <- wa_apin_tbllab_cd4 %>%
+  left_join(wa_apin_full_m9_ped_apin %>% select(patient, f_art_d, enrol_y, enrol_d), by = "patient") %>% filter(cd4_u==1)
+bdd_cd4_percent <- wa_apin_tbllab_cd4 %>%
+  left_join(wa_apin_full_m9_ped_apin %>% select(patient, f_art_d, enrol_y, enrol_d), by = "patient") %>% filter(cd4_u==2)
+```
+
+
+```{r include=FALSE}
+library(dplyr)
+library(ggplot2)
+library(lubridate)
+
+# 1. Extraire l'année de la date de mesure cd4_d
+
+#bdd_cd4_mesar <- bdd_cd4_mesar %>% filter(program=="ABEOKUTA")
+bdd_cd4_mesar <- bdd_cd4_mesar %>%
+  mutate(year_mesure = year(cd4_d)) %>%       # extrait l'année
+  filter(!is.na(year_mesure), year_mesure >= 2004 & year_mesure < 2025)   # garde les années valides à partir de 2004
+
+# 2. Compter le nombre de mesures par année
+cd4_count_year <- bdd_cd4_mesar %>%
+  group_by(year_mesure) %>%
+  summarise(n_mesures = n()) %>%
+  ungroup()
+
+# 3. Graphique ggplot
+gpl_cd4_1 <- ggplot(cd4_count_year, aes(x = year_mesure, y = n_mesures)) +
+  geom_line(size = 1.2, color = "darkorange") +
+  geom_point(size = 2, color = "darkorange") +
+  #geom_point(size = 3, color = "red") +
+  scale_x_continuous(breaks = 2004:2024) +
+  labs(
+    x = "year of measurement",
+    y = "number of measurement"
+  ) +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle = 0, hjust = 0.5),
+    plot.title = element_text(size = 20, face = "bold"))
+
+ggsave("gpl_cd4_1.png", plot = gpl_cd4_1, width = 10, height = 4)
+```
+
+\newpage
+\begin{landscape}
+\subsection{CD4 cell count measures}
+\subsubsection{Trends in CD4 cell count measurement since 2004 – IeDEA Pediatric West Africa collaboration}
+```{r}
+#ctrL
+tbl_nbr_mes_pat <- bdd_cd4_mesar %>%
+  group_by(patient) %>%
+  summarise(nbmesr_rna_v = sum(!is.na(cd4_v)), .groups = "drop")
+
+median_val <- round(median(tbl_nbr_mes_pat$nbmesr_rna_v, na.rm = TRUE), 0)
+q1_val <- round(quantile(tbl_nbr_mes_pat$nbmesr_rna_v, 0.25, na.rm = TRUE), 0)
+q3_val <- round(quantile(tbl_nbr_mes_pat$nbmesr_rna_v, 0.75, na.rm = TRUE), 0)
+```
+
+```{r}
+#This figure shows the evolution of annual CD4 cell count measurements among children and adolescents living with HIV in the IeDEA Pediatric West Africa cohort from 2004 to 2024. CD4 testing increased steadily until 2013–2015, peaking at over 8,000 measurements per year, reflecting the expansion of pediatric HIV care programs when CD4 was a key clinical marker for initiating and monitoring ART. From 2015 onwards, a marked decline was observed, largely due to updated treatment guidelines prioritizing viral load testing over CD4 counts, along with broader access to viral load platforms and resource reallocation. These trends reflect a major shift in clinical monitoring practices, aligning with WHO recommendations and the “Treat All” strategy in West Africa.
+```
+
+\begin{center}
+\textbf{Median number of measures per patient (IQR) : `r median_val` [`r q1_val` - `r q3_val`].}
+\end{center}
+
+```{r, results='asis', echo=FALSE, out.width="100%"}
+cat(" \n")
+knitr::include_graphics("gpl_cd4_1.png")
+#cat("\\begin{center}\\textbf{Site Profile :  Number of patients by group and by program}\\end{center}\n\n")
+
+```
+\end{landscape}
+
+\newpage
+\begin{landscape}
+\subsubsection{CD4 Count Evolution by year of Enrollment}
+```{r}
+library(dplyr)
+library(ggplot2)
+library(tidyr)
+
+gpl_cd4_2 <- wa_apin_full_m9_ped_apin %>%
+  filter(enrol_y >= 2004 & enrol_y < 2022) %>%
+  group_by(enrol_y) %>%
+  summarise(n_enrolled = n_distinct(patient), .groups = "drop") %>%
+  left_join(
+    bdd_cd4_mesar %>%
+      filter(!is.na(cd4_v)) %>%
+      filter(cd4_d >= (enrol_d - 90) & cd4_d <= (enrol_d + 30)) %>%
+      group_by(enrol_y) %>%
+      summarise(
+        n_cd4 = n_distinct(patient),
+        n_cd4_lt200 = n_distinct(patient[cd4_v < 200]),
+        .groups = "drop"
+      ) %>%
+      mutate(
+        n_cd4_only = n_cd4,                                      # total CD4 disponibles
+        label = ifelse(n_cd4 > 0, round(100 * n_cd4_lt200 / n_cd4), NA)  # % pour label
+      ),
+    by = "enrol_y"
+  ) %>%
+  mutate(
+    n_enrolled = replace_na(n_enrolled, 0),
+    n_cd4_only = replace_na(n_cd4_only, 0),
+    n_cd4_lt200 = replace_na(n_cd4_lt200, 0),
+    label = ifelse(is.na(label), "", as.character(label))       # corrige l'erreur de type
+  ) %>%
+  select(enrol_y, n_enrolled, n_cd4_only, n_cd4_lt200, label) %>%
+  rename(
+    "patients enrolled" = n_enrolled,
+    "CD4 cell count at available" = n_cd4_only,
+    "CD4 cell count < 200" = n_cd4_lt200
+  ) %>%
+  pivot_longer(
+    cols = c("patients enrolled", "CD4 cell count at available", "CD4 cell count < 200"),
+    names_to = "type",
+    values_to = "count"
+  ) %>%
+  mutate(
+    type = factor(type, levels = c("patients enrolled", "CD4 cell count at available", "CD4 cell count < 200"))
+  ) %>%
+  ggplot(aes(x = factor(enrol_y), y = count, fill = type)) +
+  geom_bar(stat = "identity", position = position_dodge(width = 0.9)) +
+  geom_text(
+    data = . %>% filter(type == "CD4 cell count < 200"),
+    aes(label = label),
+    position = position_nudge(x = 0.29),
+    vjust = -0.5,
+    size = 3.5
+  ) +
+  scale_fill_manual(
+    values = c(
+      "patients enrolled" = "#084594",
+      "CD4 cell count at available" = "#6BAED6",
+      "CD4 cell count < 200" = "#CB181D"
+    )
+  ) +
+  labs(
+    x = "year of enrollment",
+    y = "Number of patients",
+    fill = ""
+  ) +
+  theme_minimal(base_size = 13) +
+  theme(
+    legend.position = "bottom",
+    legend.box = "horizontal",
+    plot.title = element_text(face = "bold")
+  )
+
+ggsave("gpl_cd4_2.png", plot = gpl_cd4_2, width = 12, height = 6)
+```
+
+```{r, results='asis', echo=FALSE, out.width="100%"}
+cat(" \n")
+knitr::include_graphics("gpl_cd4_2.png")
+cat("This figure presents the availability of CD4 cell count data by year of enrolment. The dark blue bars represent the total number of patients enrolled at the clinical site each calendar year. The light blue bars indicate the number of these patients with a documented CD4 measurement at enrolment, defined as within a window of three months before to one month after enrolment. Among these measurements, the number of patients with a CD4 cell count below 200 cells/µL is shown in red, along with the corresponding percentage.\n")
+
+```
+\end{landscape}
+
+
+\newpage
+\begin{landscape}
+\subsection{Chracteristics HIV Viral Load Measurement}
+\subsubsection{Trends in HIV Viral Load cell count measurement since 2004 – IeDEA Pediatric West Africa collaboration}
+```{r include=FALSE}
+library(dplyr)
+library(ggplot2)
+library(lubridate)
+wa_apin_full_m9_ped_apin <- wa_apin_full_m9_ped_apin %>%
+  mutate(l_alive_y = year(l_alive_d))
+
+bdd_rna_mesar <- wa_apin_tbllab_rna %>% filter(!is.na(rna_v)) %>% 
+  left_join(wa_apin_full_m9_ped_apin %>% select(patient, enrol_d, enrol_y, f_art_d,l_alive_d,l_alive_y), by = "patient")
+
+
+#bdd_rna_mesar <- bdd_rna_mesar %>% filter(program=="ABEOKUTA")
+bdd_rna_mesar <- bdd_rna_mesar %>%
+  mutate(year_mesure = year(rna_d),
+         f_rna_d = min(rna_d, na.rm = TRUE)) %>%       # extrait l'année
+  filter(!is.na(year_mesure), year_mesure >= 2004 & year_mesure < 2024)   # garde les années valides à partir de 2004
+
+# 2. Compter le nombre de mesures par année
+rna_count_year <- bdd_rna_mesar %>%
+  group_by(year_mesure) %>%
+  summarise(n_mesures = n()) %>%
+  ungroup()
+
+# 3. Graphique ggplot
+gpl_rna_1 <- ggplot(rna_count_year, aes(x = year_mesure, y = n_mesures)) +
+  geom_line(size = 1.2, color = "darkorange") +
+  geom_point(size = 2, color = "darkorange") +
+  #geom_point(size = 3, color = "red") +
+  scale_x_continuous(breaks = 2004:2023) +
+  labs(
+    x = "year of measurement",
+    y = "number of measurement"
+  ) +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle = 0, hjust = 0.5),
+    plot.title = element_text(size = 20, face = "bold"))
+
+ggsave("gpl_rna_1.png", plot = gpl_rna_1, width = 12, height = 6)
+```
+
+```{r}
+#ctrL
+tbl_nbr_mes_pat <- bdd_rna_mesar %>%
+  group_by(patient) %>%
+  summarise(nbmesr_rna_v = sum(!is.na(rna_v)), .groups = "drop")
+
+median_val <- round(median(tbl_nbr_mes_pat$nbmesr_rna_v, na.rm = TRUE), 0)
+q1_val <- round(quantile(tbl_nbr_mes_pat$nbmesr_rna_v, 0.25, na.rm = TRUE), 0)
+q3_val <- round(quantile(tbl_nbr_mes_pat$nbmesr_rna_v, 0.75, na.rm = TRUE), 0)
+```
+
+\begin{center}
+\textbf{Median number of measures per patient (IQR) : `r median_val` [`r q1_val` - `r q3_val`].}
+\end{center}
+
+```{r, results='asis', echo=FALSE, out.width="100%"}
+cat(" \n")
+knitr::include_graphics("gpl_rna_1.png")
+#cat("\\begin{center}\\textbf{Site Profile :  Number of patients by group and by program}\\end{center}\n\n")
+
+```
+\end{landscape}
+
+
+
+```{r eval=FALSE, include=FALSE}
+library(dplyr)
+library(lubridate)
+
+# M6 déjà fait
+rna6 <- bdd_rna_mesar %>%
+  filter(!is.na(rna_v)) %>%
+  filter(rna_d >= f_art_d %m+% months(3) & rna_d <= f_art_d %m+% months(9)) %>%  # fenêtre 3-9 mois
+  mutate(
+    delai_rna_dtg = abs(as.numeric(difftime(f_art_d, rna_d, units = "days")))
+  ) %>%
+  group_by(patient) %>%
+  slice_min(delai_rna_dtg, n = 1, with_ties = FALSE) %>%
+  ungroup() %>%
+  mutate(rna_v6 = rna_v, rna_d_m6 = rna_d)
+
+# M12 : fenêtre 6-18 mois autour de f_art_d + 12 mois (±6 mois)
+rna12 <- bdd_rna_mesar %>%
+  filter(!is.na(rna_v)) %>%
+  filter(rna_d >= f_art_d %m+% months(6) & rna_d <= f_art_d %m+% months(18)) %>%
+  mutate(
+    delai_rna_dtg = abs(as.numeric(difftime(f_art_d %m+% months(12), rna_d, units = "days")))
+  ) %>%
+  group_by(patient) %>%
+  slice_min(delai_rna_dtg, n = 1, with_ties = FALSE) %>%
+  ungroup() %>%
+  mutate(rna_v12 = rna_v, rna_d_m12 = rna_d)
+
+# M24 : fenêtre 18-30 mois autour de f_art_d + 24 mois (±6 mois)
+rna24 <- bdd_rna_mesar %>%
+  filter(!is.na(rna_v)) %>%
+  filter(rna_d >= f_art_d %m+% months(18) & rna_d <= f_art_d %m+% months(30)) %>%
+  mutate(
+    delai_rna_dtg = abs(as.numeric(difftime(f_art_d %m+% months(24), rna_d, units = "days")))
+  ) %>%
+  group_by(patient) %>%
+  slice_min(delai_rna_dtg, n = 1, with_ties = FALSE) %>%
+  ungroup() %>%
+  mutate(rna_v24 = rna_v, rna_d_m24 = rna_d)
+```
+
+```{r}
+wa_apin_full_m9_ped_apin <- wa_apin_full_m9_ped_apin %>%
+  mutate(time_surv = as.numeric(difftime(close_d, l_alive_d, units = "days")/30.4375))
+
+```
+
+
+\newpage
+```{r include=FALSE}
+bdd_rna_mesar <- bdd_rna_mesar %>%
+  group_by(patient) %>%
+  mutate(f_rna_d = min(rna_d, na.rm = TRUE),
+         year_rna = year(rna_d)) %>%
+  ungroup()
+
+#MO :: baseline == 917
+rna0 <- bdd_rna_mesar %>%
+  filter(!is.na(rna_v)) %>%
+  filter(rna_d >= f_rna_d %m+% months(-6) & rna_d <= f_rna_d + days(30)) %>%
+  mutate(delai_rna_dtg = abs(as.numeric(difftime(f_rna_d, rna_d, units = "days"))))
+
+rna_0b <-  rna0 %>%
+  arrange(patient, delai_rna_dtg, rna_d) %>%
+  group_by(patient) %>%
+  slice_head(n = 1) %>%
+  ungroup() %>%
+  mutate(baseline_rna = 1, timp = 0)
+
+#M6 :: baseline == ---
+rna6 <- bdd_rna_mesar %>%
+  filter(!is.na(rna_v)) %>%
+  filter(rna_d >= f_rna_d %m+% months(3) & rna_d <= f_rna_d + months(9)) %>%
+  mutate(delai_rna_dtg = abs(as.numeric(difftime(f_rna_d, rna_d, units = "days"))))
+
+rna_6b <-  rna6 %>%
+  arrange(patient, delai_rna_dtg, rna_d) %>%
+  group_by(patient) %>%
+  slice_head(n = 1) %>%
+  ungroup() %>%
+  mutate(timp = 6)
+
+#M12 :: 342 
+rna12 <- bdd_rna_mesar %>%
+  filter(!is.na(rna_v)) %>%
+  filter(rna_d >= f_rna_d %m+% months(6) & rna_d < f_rna_d %m+% months(18)) %>%
+  mutate(delai_rna_dtg = abs(as.numeric(difftime(f_rna_d, rna_d, units = "days"))))
+
+rna_12b <- rna12 %>%
+  arrange(patient, delai_rna_dtg, rna_d) %>%
+  group_by(patient) %>%
+  slice_head(n = 1) %>%
+  ungroup() %>%
+  mutate(timp = 12)
+
+#M24 :: 376
+rna24 <- bdd_rna_mesar %>%
+  filter(!is.na(rna_v)) %>%
+  filter(rna_d >= f_rna_d %m+% months(18) & rna_d < f_rna_d %m+% months(30)) %>%
+  mutate(delai_rna_dtg = abs(as.numeric(difftime(f_rna_d, rna_d, units = "days"))))
+
+rna_24b <- rna24 %>%
+  arrange(patient, delai_rna_dtg, rna_d) %>%
+  group_by(patient) %>%
+  slice_head(n = 1) %>%
+  ungroup() %>%
+  mutate(timp = 24)
+
+#M36 :: 363 
+rna36 <- bdd_rna_mesar %>%
+  filter(!is.na(rna_v)) %>%
+  filter(rna_d >= f_rna_d %m+% months(30) & rna_d < f_rna_d %m+% months(42)) %>%
+  mutate(delai_rna_dtg = abs(as.numeric(difftime(f_rna_d, rna_d, units = "days"))))
+
+rna_36b <- rna36 %>%
+  arrange(patient, delai_rna_dtg, rna_d) %>%
+  group_by(patient) %>%
+  slice_head(n = 1) %>%
+  ungroup() %>%
+  mutate(timp = 36)
+
+
+rna_0b <- rna_0b %>% mutate(M0 = ifelse(!is.na(rna_v), rna_v, NA))
+rna_6b <- rna_6b %>% mutate(M6 = ifelse(!is.na(rna_v), rna_v, NA))
+rna_12b <- rna_12b %>% mutate(M12 = ifelse(!is.na(rna_v), rna_v, NA))
+rna_24b <- rna_24b %>% mutate(M24 = ifelse(!is.na(rna_v), rna_v, NA))
+
+#fusion
+rna_0b <- rna_0b %>% arrange(patient)
+rna_6b <- rna_6b %>% arrange(patient)
+rna_12b <- rna_12b %>% arrange(patient)
+rna_24b <- rna_24b %>% arrange(patient)
+bdd_rna_mesar <- bdd_rna_mesar %>% arrange(patient)
+
+# Combiner les 5 rna_0b, rna_12b et rna_24b en un seul
+rna_base1 <- bind_rows(rna_0b,rna_6b, rna_12b, rna_24b)
+rna_base1 <- rna_base1 %>% arrange(patient)
+```
+
+
+```{r include=FALSE}
+# create Variables :: surv_time_rna & nbr_Line_tp
+rna_base1 <- rna_base1 %>% mutate(surv_time_rna = as.numeric(difftime(rna_d,f_rna_d, units = "days")/30.4375))  
+rna_base1 <- rna_base1 %>% group_by(patient) %>% mutate(nbr_Line_tp = n()) %>% ungroup()
+
+rna_base1 <- rna_base1 %>% mutate(HIV_Viral_Load_Available_at_BaseLine = case_when(
+  !is.na(M0) & M0 < 1000 ~ "HIV Viral Load  < 1000 copies/mL at BaseLine",
+  !is.na(M0) & M0 >= 1000 ~ "HIV Viral Load  >= 1000 copies/mL at BaseLine",
+  is.na(M0) ~ "Missing"
+))
+
+rna_base1 <- rna_base1 %>% mutate(HIV_Viral_Load_Available_at_M6 = case_when(
+  !is.na(M6) & M6 < 1000 ~ "HIV Viral Load  < 1000 copies/mL at M6",
+  !is.na(M6) & M6 >= 1000 ~ "HIV Viral Load  >= 1000 copies/mL at M6",
+  is.na(M6) ~ "Missing"
+))
+
+rna_base1 <- rna_base1 %>% mutate(HIV_Viral_Load_Available_at_M12 = case_when(
+  !is.na(M12) & M12 < 1000 ~ "HIV Viral Load  < 1000 copies/mL at M12",
+  !is.na(M12) & M12 >= 1000 ~ "HIV Viral Load  >= 1000 copies/mL at M12",
+  is.na(M12) ~ "Missing"
+))
+
+rna_base1 <- rna_base1 %>% mutate(HIV_Viral_Load_Available_at_M24 = case_when(
+  !is.na(M24) & M24 < 1000 ~ "HIV Viral Load  < 1000 copies/mL at M24",
+  !is.na(M24) & M24 >= 1000 ~ "HIV Viral Load  >= 1000 copies/mL at M24",
+  is.na(M24) ~ "Missing"
+))
+```
+
+
+```{r}
+rna_base1 <- rna_base1 %>%
+  mutate(
+    class_viral_Load_at_M0 = case_when(
+      is.na(M0) ~ "Missing",
+      M0 < 200 & !is.na(M0) ~ "Undetectable",
+      M0 >= 200 & M0 < 1000 ~ "Viremia",
+      M0 >= 1000 ~ "Failure"
+    ),
+    
+    class_viral_Load_at_M6 = case_when(
+      is.na(M6) ~ "Missing",
+      M6 < 200 & !is.na(M6)~ "Undetectable",
+      M6 >= 200 & M6 < 1000 ~ "Viremia",
+      M6 >= 1000 ~ "Failure"
+    ),
+    
+    class_viral_Load_at_M12 = case_when(
+      is.na(M12) ~ "Missing",
+      M12 < 200 & !is.na(M12)~ "Undetectable",
+      M12 >= 200 & M12 < 1000 ~ "Viremia",
+      M12 >= 1000 ~ "Failure"
+    ),
+    
+    class_viral_Load_at_M24 = case_when(
+      is.na(M24) ~ "Missing",
+      M24 < 200 & !is.na(M24) ~ "Undetectable",
+      M24 >= 200 & M24 < 1000 ~ "Viremia",
+      M24 >= 1000 ~ "Failure"
+    )
+  )%>%
+  mutate(across(starts_with("class_viral_Load_at_M"),
+                ~ factor(.x, levels = c("Undetectable", "Viremia", "Failure", "Missing"))))
+```
+
+
+
+
+\newpage
+\subsubsection{Characteristics HIV Viral Load (VL) - m6 - m12 \& m24}
+```{r baseline-characteristics4, results='asis', echo=FALSE, message=FALSE, warning=FALSE}
+tab15 <- rna_base1 %>%
+  ungroup() %>%
+  tbl_summary(
+    include = c(
+      "class_viral_Load_at_M6",
+      "class_viral_Load_at_M12",
+      "class_viral_Load_at_M24"
+    ),
+    type = all_categorical() ~ "categorical",
+    statistic = all_categorical() ~ "{n} ({p}%)",
+    digits = all_categorical() ~ c(0, 1),   # 0 décimale pour n, 1 décimale pour %
+    missing = "no",
+    label = list(
+      class_viral_Load_at_M6 ~ "Viral load at 6 months (M6)",
+      class_viral_Load_at_M12 ~ "Viral load at 12 months (M12)",
+      class_viral_Load_at_M24 ~ "Viral load at 24 months (M24)"
+    )
+  ) %>%
+  bold_labels() %>%
+  modify_spanning_header(
+    all_stat_cols() ~ "**ART INITIATION**"
+  )
+
+
+# Titre centré en haut du tableau
+#cat("\\begin{center}\\textbf{Characteristics HIV Viral Load (VL)}\\end{center}\n\n")
+# Conversion en tableau LaTeX avec lignes horizontales
+tab15_kable1 <- tab15 %>%
+  as_kable(format = "latex", booktabs = TRUE, linesep = "\\addlinespace") %>%
+  kable_styling(
+    latex_options = c("hold_position", "striped", "repeat_header"),
+    font_size = 12
+  )
+
+tab15_kable1
+```
+The virological status categories — **Undetectable** (VL $<$ 200 copies/mL), **Viremia** (VL between 200 and 1,000 copies/mL), and **Failure** (VL $\geq$ 1,000 copies/mL) — were assessed at baseline (M0, $-6$ months to $+14$ days), at M6 (\textpm 3 months), M12, and M24 (\textpm 6 months) to monitor the virological evolution of patients over time.
+
+
+```{r}
+#This table presents the distribution of HIV viral load (VL) measurements at baseline (M0), 6 months (M6), 12 months (M12), and 24 months (M24) after ART initiation among 27,738 patients.
+
+#\begin{itemize}
+#\item At M6, the proportion of undetectable VL decreased to 6.4\%, with 3.3\% showing viremia and 6.2\% virological failure; missing data increased to 84\%.
+
+#\item At M12, 10\% of patients achieved undetectable VL, while 3.9\% had viremia and 8.9\% failure; missing values remained high (77\%).
+
+#\item At M24, undetectable VL was observed in 9.8\% of patients, viremia in 3.2\%, and failure in 7.2\%, with 80\% missing data.
+#\end{itemize}
+```
+
+
+
+\newpage
+\begin{landscape}
+\subsubsection{M6 HIV Viral Load Availability and Suppression by year of Follow-up}
+This graph shows the viral load data available at twelve months post-ART initiation. The dark blue column represents the number of patients followed up at 6 months post-ART, per calendar year. Among them, the number of patients with a viral load measurement available at 6 months, taking an interval of plus or minus six months from the follow-up date. They are shown in light blue. Among these available measurements, the number of patients with a viral load measurement below in 1000 copies represented here in red, with percentage accuracy. 
+```{r}
+wa_apin_full_m9_ped_apin <- wa_apin_full_m9_ped_apin %>%
+  mutate(art_m6_d = f_art_d + 6 * 30.4375,
+         y_art_m6 = year(art_m6_d),
+         art_m12_d= f_art_d + 12 * 30.4375,
+         y_art_m12 = year(art_m12_d),
+         art_m24_d = f_art_d + 24 * 30.4375,
+         y_art_m24 = year(art_m24_d))
+```
+
+```{r}
+library(dplyr)
+library(tidyr)
+library(lubridate)
+library(ggplot2)
+
+# Calculer la date M6 pour chaque patient
+bdd_graph_m6 <- wa_apin_full_m9_ped_apin %>% filter(!is.na(y_art_m6)) %>%
+  mutate(rna6_d = f_art_d + 182.625,
+         f_art_d = as.Date(f_art_d),
+         lastcontact_d = as.Date(lastcontact_d),
+         delay_days = as.numeric(lastcontact_d - f_art_d),
+         delay_months = delay_days / 30.4375,
+         fup_art_m6 = if_else(!is.na(delay_months) & delay_months >= 6, 1, 0))
+
+# Sélectionner la charge virale la plus proche de M6
+rna_m6 <- bdd_graph_m6 %>%
+  filter(fup_art_m6 == 1 & !is.na(rna6_d)) %>%
+  left_join(
+    wa_apin_tbllab_rna %>% mutate(rna_d = as.Date(rna_d)),
+    by = "patient"
+  ) %>%
+  mutate(delay = abs(as.numeric(rna_d - rna6_d))) %>%
+  filter(!is.na(delay) & delay <= 182) %>%
+  group_by(patient) %>%
+  arrange(delay, rna_d) %>%
+  slice(1) %>%
+  ungroup() %>%
+  mutate(
+    rna_6m_date = rna_d,
+    rna_6m = rna_v,
+    rna_6m_supp = if_else(!is.na(rna_v) & (rna_v < 1000 | rna_v == -1), 1, 0)
+  ) %>%
+  select(patient, rna_6m_date, rna_6m, rna_6m_supp)
+
+# Joindre les données M6 au dataset principal
+bdd_graph_m6 <- bdd_graph_m6 %>% left_join(rna_m6, by = "patient")
+
+# Préparer les données pour le graphique
+graph_m6 <- bdd_graph_m6 %>%
+  #filter(program == "ABEOKUTA") %>%
+  mutate(f_art_year = year(f_art_d)) %>%
+  filter(y_art_m6 >= 2009 & y_art_m6 <= 2023) %>%
+  group_by(y_art_m6) %>%
+  summarise(
+    patients_followed_at_M6 = n_distinct(patient[fup_art_m6 == 1]),
+    viral_load_available_at_M6 = n_distinct(patient[!is.na(rna_6m)]),
+    viral_load_below_1000_at_M6 = n_distinct(patient[!is.na(rna_6m) & rna_6m_supp == 1]),
+    .groups = "drop"
+  ) %>%
+  mutate(
+    label = ifelse(viral_load_available_at_M6 > 0, 
+                   round(100 * viral_load_below_1000_at_M6 / viral_load_available_at_M6), 
+                   NA)
+  ) %>%
+  pivot_longer(
+    cols = c(patients_followed_at_M6, viral_load_available_at_M6, viral_load_below_1000_at_M6),
+    names_to = "type",
+    values_to = "count"
+  ) %>%
+  mutate(
+    type = factor(
+      type,
+      levels = c("patients_followed_at_M6", "viral_load_available_at_M6", "viral_load_below_1000_at_M6")
+    )
+  ) %>%
+  ggplot(aes(x = factor(y_art_m6), y = count, fill = type)) +
+  geom_bar(stat = "identity", position = position_dodge(width = 0.9)) +
+  geom_text(
+    data = . %>% filter(type == "viral_load_below_1000_at_M6"),
+    aes(label = label),
+    position = position_nudge(x = 0.29),
+    vjust = -0.5,
+    size = 3.5
+  ) +
+  scale_fill_manual(
+    values = c(
+      "patients_followed_at_M6" = "#084594",
+      "viral_load_available_at_M6" = "#6BAED6",
+      "viral_load_below_1000_at_M6" = "#CB181D"
+    )
+  ) +
+  labs(
+    x = "",
+    y = "Number of patients",
+    fill = ""
+  ) +
+  theme_minimal(base_size = 13) +
+  theme(
+    legend.position = "bottom",
+    legend.box = "horizontal",
+    plot.title = element_text(face = "bold")
+  )
+
+ggsave("graph_m6.png", plot = graph_m6, width = 12, height = 6)
+```
+
+```{r, results='asis', echo=FALSE, out.width="100%"}
+knitr::include_graphics("graph_m6.png")
+```
+\end{landscape}
+
+
+\begin{landscape}
+\subsubsection{M12 HIV Viral Load Availability and Suppression by year of Follow-up}
+This graph shows the viral load data available at twelve months post-ART initiation. The dark blue column represents the number of patients followed up at 12 months post-ART, per calendar year. Among them, the number of patients with a viral load measurement available at 12 months, taking an interval of plus or minus six months from the follow-up date. They are shown in light blue. Among these available measurements, the number of patients with a viral load measurement below in 1000 copies represented here in red, with percentage accuracy. 
+```{r}
+# ---- 1. Définir le point cible M12 ----
+bdd_graph_m12 <- wa_apin_full_m9_ped_apin %>% filter(!is.na(y_art_m12)) %>%
+  mutate(
+    rna12_d = f_art_d + 365.25,    # 12 mois après initiation
+    f_art_d = as.Date(f_art_d),
+    lastcontact_d = as.Date(lastcontact_d),
+    delay_days = as.numeric(lastcontact_d - f_art_d),
+    delay_months = delay_days / 30.4375,
+    fup_art_m12 = if_else(!is.na(delay_months) & delay_months >= 12, 1, 0)
+  )
+
+# ---- 2. Sélectionner la charge virale la plus proche de M12 (+/- 6 mois) ----
+rna_m12 <- bdd_graph_m12 %>%
+  filter(fup_art_m12 == 1 & !is.na(rna12_d)) %>%
+  left_join(
+    wa_apin_tbllab_rna %>% mutate(rna_d = as.Date(rna_d)),
+    by = "patient"
+  ) %>%
+  mutate(delay = abs(as.numeric(rna_d - rna12_d))) %>%
+  filter(!is.na(delay) & delay <= 182) %>%
+  group_by(patient) %>%
+  arrange(delay, rna_d) %>%
+  slice(1) %>%
+  ungroup() %>%
+  mutate(
+    rna_12m_date = rna_d,
+    rna_12m = rna_v,
+    rna_12m_supp = if_else(!is.na(rna_v) & (rna_v < 1000 | rna_v == -1), 1, 0)
+  ) %>%
+  select(patient, rna_12m_date, rna_12m, rna_12m_supp)
+
+# ---- 3. Joindre les données M12 au dataset principal ----
+bdd_graph_m12 <- bdd_graph_m12 %>% left_join(rna_m12, by = "patient")
+
+# ---- 4. Préparer les données pour le graphique ----
+graph_m12_data <- bdd_graph_m12 %>%
+  #filter(program == "ABEOKUTA") %>%
+  mutate(f_art_year = year(f_art_d)) %>%
+  filter(y_art_m12 >= 2009 & y_art_m12 <= 2023) %>%
+  group_by(y_art_m12) %>%
+  summarise(
+    patients_followed_at_M12 = n_distinct(patient[fup_art_m12 == 1]),
+    viral_load_available_at_M12 = n_distinct(patient[!is.na(rna_12m)]),
+    viral_load_below_1000_at_M12 = n_distinct(patient[!is.na(rna_12m) & rna_12m_supp == 1]),
+    .groups = "drop"
+  ) %>%
+  mutate(
+    label = ifelse(viral_load_available_at_M12 > 0, 
+                   round(100 * viral_load_below_1000_at_M12 / viral_load_available_at_M12), 
+                   NA)
+  ) %>%
+  pivot_longer(
+    cols = c(patients_followed_at_M12, viral_load_available_at_M12, viral_load_below_1000_at_M12),
+    names_to = "type",
+    values_to = "count"
+  ) %>%
+  mutate(
+    type = factor(
+      type,
+      levels = c(
+        "patients_followed_at_M12",
+        "viral_load_available_at_M12",
+        "viral_load_below_1000_at_M12"
+      )
+    )
+  )
+
+# ---- 5. Graphique ----
+graph_m12 <- graph_m12_data %>%
+  ggplot(aes(x = factor(y_art_m12), y = count, fill = type)) +
+  geom_bar(stat = "identity", position = position_dodge(width = 0.9)) +
+  geom_text(
+    data = . %>% filter(type == "viral_load_below_1000_at_M12"),
+    aes(label = label),
+    position = position_nudge(x = 0.29),
+    vjust = -0.5,
+    size = 3.5
+  ) +
+  scale_fill_manual(
+    values = c(
+      "patients_followed_at_M12" = "#084594",
+      "viral_load_available_at_M12" = "#6BAED6",
+      "viral_load_below_1000_at_M12" = "#CB181D"
+    )
+  ) +
+  labs(
+    x = "",
+    y = "Number of patients",
+    fill = ""
+  ) +
+  theme_minimal(base_size = 13) +
+  theme(
+    legend.position = "bottom",
+    legend.box = "horizontal",
+    plot.title = element_text(face = "bold")
+  )
+
+ggsave("graph_m12.png", plot = graph_m12, width = 12, height = 6)
+```
+
+```{r, results='asis', echo=FALSE, out.width="100%"}
+knitr::include_graphics("graph_m12.png")
+```
+\end{landscape}
+
+
+\begin{landscape}
+\subsection{Weight and Height Measurement Trends for the patients in the active file}
+```{r}
+library(dplyr)
+library(lubridate)
+library(tidyr)
+library(ggplot2)
+
+# --- 1. Extraire le statut "file active" ---
+file_active_info <- wa_apin_full_m9_ped_apin %>%
+  select(patient, file_active)
+
+# --- 2. Joindre à la table des visites ---
+vis_active <- wa_apin_tblvis %>%
+  left_join(file_active_info, by = "patient") %>%
+  filter(file_active == 1) %>%   # ne garder que les patients actifs
+  filter(!is.na(vis_d)) %>%      # s’assurer que la date de visite existe
+  mutate(
+    year = year(vis_d),
+    weight_measured = !is.na(weigh),
+    height_measured = !is.na(heigh_cm)
+  )
+
+# --- 3. Agréger par année ---
+tab_trends <- vis_active %>%
+  group_by(year) %>%
+  summarise(
+    n_total_visits = n(),
+    n_weight = sum(weight_measured),
+    n_height = sum(height_measured)
+  ) %>%
+  filter(year >= 2006 & year <= 2023)
+
+# --- 4. Mise en forme longue ---
+df_long <- tab_trends %>%
+  pivot_longer(
+    cols = c(n_total_visits, n_weight, n_height),
+    names_to = "indicator",
+    values_to = "count"
+  ) %>%
+  mutate(
+    indicator = recode(indicator,
+      n_total_visits = "Number of visits among active file patients",
+      n_weight = "Number of visits with a weight measurement among active file patients",
+      n_height = "Number of visits with a height measurement among active file patients"
+    )
+  )
+
+# --- 5. Visualisation ---
+wh_plot <- ggplot(df_long, aes(x = year, y = count, fill = indicator)) +
+  geom_area(alpha = 0.4, position = "identity") +
+  geom_line(aes(color = indicator), size = 1.3) +
+  theme_minimal(base_size = 13) +
+  labs(
+    title = "",
+    x = "",
+    y = "number of visits"
+  ) +
+  scale_x_continuous(
+    breaks = 2006:2023,       # affiche toutes les années
+    limits = c(2006, 2023)    # borne l’axe X à 2006–2024
+  ) +
+  theme(
+    plot.title = element_text(hjust = 0.5, face = "bold"),
+    legend.title = element_blank(),
+    legend.position = "bottom",
+    legend.direction = "horizontal",
+    legend.box = "horizontal",
+    legend.justification = "center",
+    legend.text = element_text(size = 10),
+    axis.text.x = element_text(angle = 0, vjust = 1, hjust = 1) # pour lisibilité
+  )
+ggsave("wh_plot.png", plot = wh_plot, width = 12, height = 6)
+```
+
+```{r}
+#ctrL
+tbl_nbr_vis_pat <- wa_apin_tblvis %>%
+  left_join(file_active_info, by = "patient") %>%
+  filter(file_active == 1) %>%
+  group_by(patient) %>%
+  summarise(nbvis_pat = sum(!is.na(vis_d)), .groups = "drop")
+
+median_val <- round(median(tbl_nbr_vis_pat$nbvis_pat, na.rm = TRUE), 0)
+q1_val <- round(quantile(tbl_nbr_vis_pat$nbvis_pat, 0.25, na.rm = TRUE), 0)
+q3_val <- round(quantile(tbl_nbr_vis_pat$nbvis_pat, 0.75, na.rm = TRUE), 0)
+```
+
+\begin{center}
+\textbf{Median number of visits per patient (IQR) : `r median_val` [`r q1_val` - `r q3_val`].}
+\end{center}
+
+```{r, results='asis', echo=FALSE, out.width="100%"}
+cat(" \n")
+knitr::include_graphics("wh_plot.png")
+#cat("\\begin{center}\\textbf{Site Profile :  Number of patients by group and by program}\\end{center}\n\n")
+
+```
+\end{landscape}
+
+\subsection{Implementation of dolutegravir treatment for all patients who have initiated treatment and for those in the active file, progress status at database closure}
+\subsubsection{ART INITIATION}
+```{r baseline-characteristics_1, results='asis', echo=FALSE, message=FALSE, warning=FALSE}
+tbl_inf_charc <- tbl_inf_charc %>% #filter(program == "ABEOKUTA") %>%
+  mutate(dtg_cl = recode(dtg_cl,
+                         `1` = "DTG at ART initiation",
+                         `2` = "Switch to DTG",
+                         `3` = "Not on DTG"))
+tbl_inf_charc <- tbl_inf_charc %>% rename(Implementation_of_dolutegravir = dtg_cl)
+tbl_inf_charc$Implementation_of_dolutegravir <- factor(tbl_inf_charc$Implementation_of_dolutegravir, levels = c("DTG at ART initiation", "Switch to DTG", "Not on DTG"))
+tbl_char8 <- tbl_inf_charc %>%
+  ungroup() %>%
+  tbl_summary(
+    include = c("Implementation_of_dolutegravir"),
+    type = all_categorical() ~ "categorical",
+    statistic = all_categorical() ~ "{n} ({p}%)",
+    digits = all_categorical() ~ c(0, 1),   # 0 décimale pour n, 1 décimale pour %
+    missing = "no",
+    label = list(
+      Implementation_of_dolutegravir ~ "Implementation of dolutegravir"
+    )
+  ) %>%
+  bold_labels() %>%
+  modify_spanning_header(
+    #all_stat_cols() ~ "**OVERALL - All IeDEA WEST AFRICA**"
+  )
+
+
+tbl_char8_kable <- tbl_char8 %>%
+  as_kable(format = "latex", booktabs = TRUE, linesep = "\\addlinespace") %>%
+  kable_styling(
+    latex_options = c("hold_position", "striped", "repeat_header"),
+    font_size = 14
+  )
+
+tbl_char8_kable
+#cat("\\begin{center}\\textbf{OVERALL - All IeDEA WEST AFRICA}\\end{center}\n\n")
+```
+
+\vspace{1.5cm}
+
+\subsubsection{ACTIVE FILE}
+```{r baseline-characteristics_2, results='asis', echo=FALSE, message=FALSE, warning=FALSE}
+tbl_char9 <- tbl_inf_charc %>% filter(file_active==1) %>%
+  ungroup() %>%
+  tbl_summary(
+    include = c("Implementation_of_dolutegravir"),
+    type = all_categorical() ~ "categorical",
+    statistic = all_categorical() ~ "{n} ({p}%)",
+    digits = all_categorical() ~ c(0, 1),   # 0 décimale pour n, 1 décimale pour %
+    missing = "no",
+    label = list(
+      Implementation_of_dolutegravir ~ "Implementation of dolutegravir"
+    )
+  ) %>%
+  bold_labels() %>%
+  modify_spanning_header(
+    #all_stat_cols() ~ "**OVERALL - All IeDEA WEST AFRICA**"
+  )
+
+tbl_char9_kable <- tbl_char9 %>%
+  as_kable(format = "latex", booktabs = TRUE, linesep = "\\addlinespace") %>%
+  kable_styling(
+    latex_options = c("hold_position", "striped", "repeat_header"),
+    font_size = 14
+  )
+
+tbl_char9_kable
+#cat("\\begin{center}\\textbf{ACTIVE FILE - All IeDEA WEST AFRICA}\\end{center}\n\n")
+
+```
+
+\begin{landscape}
+\subsection{Diastolic and Systolic blood pressure measurement Trends}
+```{r eval=FALSE, include=FALSE}
+library(dplyr)
+library(lubridate)
+library(tidyr)
+library(ggplot2)
+
+# 1. Extraire l'année
+wa_apin_tbllab_bp <- wa_apin_tbllab_bp %>% #filter(program=="AKURE") %>%
+  mutate(annee = year(bp_d)) %>%
+  filter(annee < 2025)
+
+# 2. Passer en format long
+bp_long <- wa_apin_tbllab_bp %>%
+  pivot_longer(
+    cols = c(bp_sys, bp_dia),
+    names_to = "blood_pressure",
+    values_to = "valeur"
+  )
+
+# 3. Compter le nombre de mesures par année et type
+bp_par_annee <- bp_long %>%
+  filter(!is.na(valeur)) %>%
+  group_by(annee, blood_pressure) %>%
+  summarise(n_mesures = n(), .groups = "drop")
+
+# 4. Graphique en courbes
+sys_dia_plot <- ggplot(bp_par_annee, aes(x = annee, y = n_mesures, color = blood_pressure)) +
+  geom_line(size = 1.2) +
+  geom_point(size = 2) +
+  labs(
+    x = "",
+    y = "Numbre of measurement"
+  ) +
+  scale_color_manual(
+    values = c("bp_sys" = "#084594", "bp_dia" = "darkorange"),
+    labels = c("Systolique", "Diastolique")
+  ) +
+  scale_x_continuous(breaks = seq(min(bp_par_annee$annee, na.rm = TRUE),
+                                  max(bp_par_annee$annee, na.rm = TRUE), 1)) +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle = 0, hjust = 0.5),
+    plot.title = element_text(size = 12),
+    plot.background = element_rect(fill = "white", color = NA),
+    panel.background = element_rect(fill = "white", color = NA),
+    legend.position = "bottom",        # légende en bas
+    legend.direction = "horizontal"    # orientation horizontale
+  )
+ggsave("sys_dia_plot.png", plot = sys_dia_plot, width = 12, height = 6)
+
+
+#ctrL
+tbl_nbr_lab_bp_pat <- wa_apin_tbllab_bp %>% #filter(program=="AKURE") %>%
+  group_by(patient) %>%
+  summarise(nb_mesur_pat = sum(!is.na(bp_sys)), .groups = "drop")
+
+median_val <- round(median(tbl_nbr_lab_bp_pat$nb_mesur_pat, na.rm = TRUE), 0)
+q1_val <- round(quantile(tbl_nbr_lab_bp_pat$nb_mesur_pat, 0.25, na.rm = TRUE), 0)
+q3_val <- round(quantile(tbl_nbr_lab_bp_pat$nb_mesur_pat, 0.75, na.rm = TRUE), 0)
+```
+\begin{center}
+\textbf{Median number of measure, Diastolic or Systolic blood pressure, per patient (IQR) :  - [-- - --].} \\
+
+\vspace{4cm}
+\textbf{\LARGE \textcolor{red}{No other laboratory data available.}}
+
+\end{center}
+
+```{r eval=FALSE, include=FALSE, out.width="100%", results='asis'}
+cat(" \n")
+knitr::include_graphics("sys_dia_plot.png")
+#cat("\\begin{center}\\textbf{Site Profile :  Number of patients by group and by program}\\end{center}\n\n")
+
+```
+\end{landscape}
+
+
+
+```{r baseline-characteristics434, eval=FALSE, message=FALSE, warning=FALSE, include=FALSE, results='asis'}
+#\newpage
+#\section{Laboratory measurements}
+wa_apin_tbllab <- wa_apin_tbllab %>% rename(Laboratory_measurements   = lab_id)
+tab_lab3 <- wa_apin_tbllab %>% left_join(art_init %>% select(-program), by="patient") %>%
+  ungroup() %>%
+  tbl_summary(include = c("Laboratory_measurements")) %>%
+  bold_labels() %>%
+  modify_spanning_header(
+    all_stat_cols() ~ "** **"
+  )
+
+
+
+#cat("\\begin{center}\\textbf{Infected - Laboratory measurements}\\end{center}\n\n")
+
+
+tab_lab3_kable1 <- tab_lab3 %>%
+  as_kable(format = "latex", booktabs = TRUE, linesep = "\\addlinespace") %>%
+  kable_styling(
+    latex_options = c("hold_position", "striped", "repeat_header"),
+    font_size = 10
+  )
+
+tab_lab3_kable1
+#cat("\\begin{center}\\textbf{Laboratory measurements - CePReF}\\end{center}\n\n")
+
+```
+
+
+\newpage
+\section{Acknowledgements}
+\vspace{1cm}
+\begin{itemize}
+  \item \textbf{All the patients}
+  \item \textbf{Clinical investigators from the pediatric WADA sites}
+  \item \textbf{Data-Managers from the pediatric WADA sites}
+  \item \textbf{Co-Principal Investigators :} 
+    \begin{itemize}
+      \item Antoine Jaquet, Co-Principal Investigator (Bordeaux, France)
+      \item Didier Ekouevi, Co-Principal Investigator (Abidjan, Côte d'Ivoire)
+      \item Ighovwerha Ofotokun, Co-Principal Investigator (Abidjan, Côte d'Ivoire)
+    \end{itemize}
+  \item \textbf{Project team :} 
+   \begin{itemize}
+      \item Valériane Leroy (Toulouse, France)
+      \item Noelle Benzekri, Charlotte Bernard (Bordeaux, France)
+      \item Olivier Marcy (Bordeaux, France), Marie Kerbie Plaisy (Bordeaux, France)
+      \item François Dabis (Bordeaux, France), Caroline Couturier (Bordeaux, France)       
+      \item Simon Pierre Boni (Abidjan, Côte d'Ivoire)
+    \end{itemize}
+  \item \textbf{Operational and Statistical Team :} Jean-Claude Azani (Abidjan, Côte d'Ivoire), Désiré Dahourou (Ouagadougou, Burkina Faso), Sophie Desmonde (Toulouse, France), Julie Jesson (Toulouse, France), Karen Malateste (Bordeaux, France), Thierry Tiendrebeogo (Bordeaux, France), \textbf{Emile Sodinyessi} (Toulouse, France), Boris Gildas HEDIBLE (Toulouse, France)
+  \item \textbf{Administrative Team:} Cissé Adoulaye (Abidjan, Côte d'Ivoire), Guy Gnepa (Abidjan, Côte d'Ivoire), Adrienne Kouakou (Abidjan, Côte d'Ivoire), Elodie Rabourdin (Bordeaux, France), Isabelle Rey (Pessac, France), Sophie Labarrière (Bordeaux, France)
+  \item \textbf{Funding :} 
+   \begin{itemize}
+      \item The National Cancer Institute (NCI)
+      \item The Eunice Kennedy Shriver National Institute of Child Health \& Human Development (NICHD)
+      \item The National Institute of Allergy and Infectious Diseases (NIAID)       
+      \item The U.S. National Institutes of Health (NIH)
+      \item The National Institute of Mental Health (NIMH)       
+    \end{itemize}
+\end{itemize}
+\begin{center}
+as part of the International Epidemiologic Databases to Evaluate AIDS (IeDEA) under Award Number U01AI069919. The content is solely the responsibility of the authors and does not necessarily represent the official views of the National Institutes of Health.
+\end{center}
+
+
+
+
+```{r}
+
+```
+
